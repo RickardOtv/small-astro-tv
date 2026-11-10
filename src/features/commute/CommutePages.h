@@ -35,12 +35,17 @@ void cpWeek(Arduino_GFX* g, const Settings& s);
 void cpTrips(Arduino_GFX* g, const Settings& s, time_t now);
 void cpInfo(Arduino_GFX* g, const Settings& s, const CommuteInfo& info);
 
-// The astronaut dresses for the weather and waves when it is time to leave.
+// The astronaut dresses for the weather and the season, waves when it is time
+// to leave, sleeps in night mode and facepalms at a cancelled trip.
 enum AstroSky : uint8_t { SKY_STARS, SKY_SUN, SKY_RAIN, SKY_SNOW };
+enum AstroHat : uint8_t { HAT_NONE, HAT_SANTA, HAT_LUCIA, HAT_PARTY, HAT_FLOWERS };
 struct AstroLook {
   AstroSky sky;
-  bool     scarf;   // cold
-  bool     hurry;   // the next trip leaves within 2 min of the walk time
+  bool     scarf;      // cold
+  bool     hurry;      // the next trip leaves within 2 min of the walk time
+  bool     sleep;      // night mode is dimming the screen
+  bool     facepalm;   // the next trip is cancelled
+  AstroHat hat;        // December, Lucia, birthday, Midsummer
 };
 AstroLook cpAstroLook(const Settings& s, time_t now);   // now = 0: clock not set
 

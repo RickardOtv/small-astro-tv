@@ -478,4 +478,8 @@
 #ifndef COMMUTE_DEF_WALK_MIN
 #define COMMUTE_DEF_WALK_MIN 0
 #endif
+#define COMMUTE_NOWCAST_SLOTS 8   // 15-minute rain steps fetched (2 hours)
+#ifndef COMMUTE_DEF_BIRTHDAY
+#define COMMUTE_DEF_BIRTHDAY ""      // "MM-DD": the astronaut wears a party hat
+#endif
 #define MAX_COMMUTE_FIELD_LEN 48

@@ -30,13 +30,21 @@ Pages (tap the button for the next one, hold it to go back to Home):
 | Page  | Shows |
 |-------|-------|
 | Home  | date, big time, weather now, the next trip (lines, delay, minutes, arrival), the astronaut |
-| Hours | today's high and low; the next 8 hours in a row (icon, chance of rain from 20%, temperature); when rain starts, feels-like, wind, sunrise and sunset |
+| Hours | today's high and low; the next 8 hours in a row (icon, chance of rain from 20%, temperature); rain soon, feels-like, wind and gusts, sunrise to sunset, day length and its weekly change |
 | Week  | 7-day forecast |
 | Trips | the next three trips in detail |
 | Info  | WiFi, IP, firmware, uptime, memory, last fetches |
 
-The astronaut follows the weather (umbrella, snow, sun, scarf when cold) and
-waves "GO!" when the next trip leaves within 2 minutes of the walk time.
+The astronaut follows the weather (umbrella, snow, sun, scarf when cold),
+waves "GO!" when the next trip leaves within 2 minutes of the walk time,
+facepalms at a cancelled trip and sleeps while night mode dims the screen. It
+dresses for the season: a Santa hat in December, a Lucia crown on 13 December,
+a flower crown on Midsummer Eve and a party hat on the `COMMUTE_BIRTHDAY` set in
+`commute.env`.
+
+Home and Hours use the 15-minute rain forecast ("Rain in 25 min", "Stops in
+10 min"), show gusts SMHI style ("Wind 5 (11) m/s", orange from 14 m/s), and
+Hours shows the day length and its change from a week ago.
 
 ### Setup
 

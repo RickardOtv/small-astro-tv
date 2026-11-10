@@ -17,6 +17,7 @@ struct HourWx {
   int16_t code;       // WMO weather code
   int8_t  temp;       // deg C
   int8_t  rain;       // precipitation probability %
+  int8_t  gust;       // wind gusts, m/s
   bool    isDay;
 };
 
@@ -33,6 +34,7 @@ struct Weather {
   float    temp, feels;   // current, deg C
   uint8_t  humidity;      // %
   float    wind;          // m/s
+  float    gust;          // m/s
   int16_t  code;          // current WMO weather code
   bool     isDay;
   HourWx   hours[COMMUTE_HOURS];
@@ -40,6 +42,11 @@ struct Weather {
   DayWx    days[COMMUTE_DAYS];   // days[0] = today
   uint8_t  dayCount;
   char     sunrise[6], sunset[6];   // "07:43"
+  // Rain in 15-minute steps for the next 2 hours (nowcast): slot k covers
+  // ncStart + k*15 min. Tenths of a mm, capped at 255.
+  time_t   ncStart;
+  uint8_t  ncCount;
+  uint8_t  ncRain[COMMUTE_NOWCAST_SLOTS];
 };
 
 struct TripLeg {

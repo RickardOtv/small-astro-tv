@@ -3,6 +3,8 @@
 #include "Gfx.h"
 #include "CommuteDraw.h"
 #include "CommuteClient.h"
+#include "Clock.h"
+#include "SunTimes.h"
 
 static const uint16_t kRainBlue = 0x551F;   // ~ (80,160,255)
 
@@ -42,6 +44,62 @@ static const char* noTripsReason() {
        : commuteTripCount() ? "No more trips soon"
        : !strcmp(commuteTripStatus(), "idle") ? "Loading trips..."
        : "No trips found";
+}
+
+// ---- rain soon, gusts, daylight ----------------------------------------------
+// From the 15-minute nowcast: "Rain in 15 min", "Rain stops in 30 min",
+// "Rain the next 2 h". False when it stays dry. `brief` drops "Rain" where
+// the context says it ("Stops in 30 min").
+static const uint8_t kWetTenths = 1;   // 0.1 mm in 15 min counts as rain
+
+static bool rainSoon(time_t now, char* out, size_t n, bool brief) {
+  const Weather& w = commuteWeather();
+  if (!w.valid || !w.ncCount || !now) return false;
+  long k = (long)(now - w.ncStart) / 900;
+  if (k < 0) k = 0;
+  if (k >= w.ncCount) return false;
+  bool wet = w.ncRain[k] >= kWetTenths;
+  for (uint8_t j = k + 1; j < w.ncCount; j++) {
+    if ((w.ncRain[j] >= kWetTenths) == wet) continue;
+    long min = (long)(w.ncStart + j * 900L - now) / 60;
+    if (min < 1) min = 1;
+    if (wet) snprintf(out, n, brief ? "Stops in %ld min" : "Rain stops in %ld min", min);
+    else     snprintf(out, n, "Rain in %ld min", min);
+    return true;
+  }
+  if (!wet) return false;
+  strlcpy(out, brief ? "Raining" : "Rain the next 2 h", n);
+  return true;
+}
+
+// "Wind 4 m/s", or SMHI style "Wind 4 (9) m/s" when gusts are notably stronger.
+static const int kGustNote = 3;    // gusts this much above the mean are shown
+static const int kGustWarn = 14;   // m/s: orange
+static void windText(const Weather& w, char* out, size_t n, uint16_t& color) {
+  int mean = (int)lroundf(w.wind), gust = (int)lroundf(w.gust);
+  color = gust >= kGustWarn ? cdRgb(255, 150, 40) : C_GRAY;
+  if (gust >= mean + kGustNote) snprintf(out, n, "Wind %d (%d) m/s", mean, gust);
+  else                          snprintf(out, n, "Wind %d m/s", mean);
+}
+
+// Day length today, and its change from a week ago, in minutes.
+static bool dayLength(const Settings& s, const struct tm* t, int& lenMin, int& weekDelta) {
+  if (!t || (s.clock.lat == 0.0f && s.clock.lon == 0.0f)) return false;
+  auto len = [&](time_t at) {
+    struct tm l, u;
+    localtime_r(&at, &l);
+    gmtime_r(&at, &u);
+    SunTimes st = sunTimes(s.clock.lat, s.clock.lon, l.tm_year + 1900, l.tm_mon + 1, l.tm_mday,
+                           sunUtcOffsetMin(l, u));
+    if (st.kind != SUN_NORMAL) return st.kind == SUN_POLAR_DAY ? 1440 : 0;
+    int d = st.set - st.rise;
+    return d < 0 ? d + 1440 : d;
+  };
+  struct tm tc = *t;
+  time_t now = mktime(&tc);
+  lenMin = len(now);
+  weekDelta = lenMin - len(now - 7 * 86400L);
+  return true;
 }
 
 // ===========================================================================
@@ -134,13 +192,16 @@ void cpHome(Arduino_GFX* g, const Settings& s, const struct tm* t, time_t now) {
     if (w.dayCount) {
       snprintf(buf, sizeof(buf), "%d\xC2\xB0 / %d\xC2\xB0", w.days[0].tMax, w.days[0].tMin);
       cdTextRight(g, &commuteBold16, buf, 230, 108, C_WHITE);
-      if (w.days[0].rain >= 0) {
+      if (t && rainSoon(now, buf, sizeof(buf), true)) {
+        cdTextRight(g, &commuteReg16, buf, 230, 126, gfxTint(kRainBlue));
+      } else if (w.days[0].rain >= 0) {
         snprintf(buf, sizeof(buf), "Rain %d%%", w.days[0].rain);
         cdTextRight(g, &commuteReg16, buf, 230, 126, w.days[0].rain >= 50 ? gfxTint(kRainBlue) : C_GRAY);
       }
     }
-    snprintf(buf, sizeof(buf), "Wind %d m/s", (int)lroundf(w.wind));
-    cdTextRight(g, &commuteReg16, buf, 230, 144, C_GRAY);
+    uint16_t wc;
+    windText(w, buf, sizeof(buf), wc);
+    cdTextRight(g, &commuteReg16, buf, 230, 144, wc);
   }
   g->drawFastHLine(10, 153, 220, C_DGRAY);
   if (t) homeTrip(g, s, now);
@@ -175,8 +236,25 @@ static uint16_t astroColor(char c) {
   }
 }
 
+// Which hat today: Lucia (13 Dec), the rest of December, the birthday from
+// commute.env, Midsummer Eve (the Friday from 19 to 25 June).
+static AstroHat hatFor(time_t now) {
+  if (!now) return HAT_NONE;
+  struct tm l;
+  localtime_r(&now, &l);
+  int mon = l.tm_mon + 1, day = l.tm_mday;
+  int bm = 0, bd = 0;
+  if (sscanf(COMMUTE_DEF_BIRTHDAY, "%d-%d", &bm, &bd) == 2 && bm == mon && bd == day) return HAT_PARTY;
+  if (mon == 12 && day == 13) return HAT_LUCIA;
+  if (mon == 12) return HAT_SANTA;
+  if (mon == 6 && day >= 19 && day <= 25 && l.tm_wday == 5) return HAT_FLOWERS;
+  return HAT_NONE;
+}
+
 AstroLook cpAstroLook(const Settings& s, time_t now) {
-  AstroLook l = {SKY_STARS, false, false};
+  AstroLook l = {SKY_STARS, false, false, false, false, HAT_NONE};
+  l.sleep = clockNightActive();
+  l.hat = hatFor(now);
   const Weather& w = commuteWeather();
   if (w.valid) {
     int c = w.code;
@@ -187,8 +265,10 @@ AstroLook cpAstroLook(const Settings& s, time_t now) {
   }
   if (now && !tripsUnconfigured(s)) {
     const Trip* first;
-    if (upcomingTrips(s, now, &first, 1) && !first->canceled)
-      l.hurry = (first->when - now) / 60 - (time_t)s.commute.walkMin <= 2;
+    if (upcomingTrips(s, now, &first, 1)) {
+      if (first->canceled) l.facepalm = true;
+      else l.hurry = (first->when - now) / 60 - (time_t)s.commute.walkMin <= 2;
+    }
   }
   return l;
 }
@@ -199,11 +279,14 @@ void cpAstronaut(Arduino_GFX* g, uint32_t step, const AstroLook& look, int x0, i
   static const uint8_t kStars[][2] = {{4, 10}, {52, 6}, {6, 70}, {56, 62}, {28, 2}};
   static const uint8_t kDropX[8] = {2, 9, 17, 25, 33, 41, 49, 56};
   uint8_t i = step % 16;
-  bool umbrella = look.sky == SKY_RAIN;
-  // Arm up: holding the umbrella, waving when it is time to go, or now and then.
-  bool armUp = umbrella || (look.hurry ? (step / 2) % 2 == 0
-                                       : (step / 16) % 2 == 1 && (i / 2) % 2 == 0);
-  int ox = X0 + (umbrella ? 0 : 4), oy = Y0 + 14 + kBob[look.hurry ? (i * 2) % 16 : i];
+  bool umbrella = look.sky == SKY_RAIN && !look.facepalm;
+  // Arm up: holding the umbrella, waving when it is time to go, or now and
+  // then. Asleep: still, arms down. Facepalm: the other hand is on the visor.
+  bool armUp = !look.sleep && !look.facepalm &&
+               (umbrella || (look.hurry ? (step / 2) % 2 == 0
+                                        : (step / 16) % 2 == 1 && (i / 2) % 2 == 0));
+  int bob = look.sleep ? 2 : kBob[look.hurry ? (i * 2) % 16 : i];
+  int ox = X0 + (umbrella ? 0 : 4), oy = Y0 + 14 + bob;
 
   g->fillRect(X0, Y0, W, H, C_BLACK);
 
@@ -242,7 +325,8 @@ void cpAstronaut(Arduino_GFX* g, uint32_t step, const AstroLook& look, int x0, i
       else      g->drawFastVLine(x, Y0 + y, 5, cdRgb(80, 160, 255));
     }
   }
-  if (look.hurry && (step / 3) % 2 == 0) cdText(g, &commuteBold16, "GO!", X0 + 2, Y0 + 16, C_GREEN);
+  if (look.hurry && !look.sleep && (step / 3) % 2 == 0)
+    cdText(g, &commuteBold16, "GO!", X0 + 2, Y0 + 16, C_GREEN);
 
   const char* const* rows = armUp ? kAstroWave : kAstroDown;
   for (int r = 0; r < 16; r++)
@@ -255,6 +339,61 @@ void cpAstronaut(Arduino_GFX* g, uint32_t step, const AstroLook& look, int x0, i
       g->fillRect(ox + c * 3, oy + 7 * 3, 3, 3, c % 2 ? cdRgb(220, 50, 60) : cdRgb(250, 240, 240));
     g->fillRect(ox + 4 * 3, oy + 8 * 3, 3, 6, cdRgb(220, 50, 60));
     g->fillRect(ox + 3 * 3, oy + 10 * 3, 3, 3, cdRgb(220, 50, 60));
+  }
+  // Pixels on the sprite's 3 px grid; row -1 is just above the helmet.
+  auto px = [&](int c, int r, uint16_t col) { g->fillRect(ox + c * 3, oy + r * 3, 3, 3, col); };
+  if (look.sleep) {                                   // visor shut, Zzz rising
+    for (int r = 3; r <= 5; r++)
+      for (int c = 5; c <= 10; c++) px(c, r, cdRgb(60, 64, 80));
+    for (int c = 6; c <= 9; c++) px(c, 4, cdRgb(30, 32, 44));     // closed eyes
+    int z = (step / 4) % 3;
+    cdText(g, &commuteReg12, "z", X0 + 44, Y0 + 26 - z * 3, C_GRAY);
+    if (z > 0) cdText(g, &commuteBold13, "Z", X0 + 50, Y0 + 14 - z * 2, C_WHITE);
+  }
+  if (look.facepalm) {                                // glove over the visor, arm bent up
+    uint16_t glove = cdRgb(200, 205, 220), cuff = astroColor('O'), suit = astroColor('W');
+    for (int r = 6; r <= 8; r++) px(12, r, suit);     // forearm up from the elbow
+    px(11, 6, cuff); px(11, 5, cuff);                  // cuff
+    for (int r = 3; r <= 5; r++)
+      for (int c = 6; c <= 10; c++) px(c, r, glove);   // palm over the visor
+    for (int c = 6; c <= 9; c++) px(c, 2, glove);      // fingertips
+    if ((step / 6) % 2) cdText(g, &commuteBold16, "?!", X0 + 2, Y0 + 16, C_RED);
+  }
+  switch (look.hat) {
+    case HAT_SANTA: {
+      uint16_t red = cdRgb(215, 40, 50), white = cdRgb(245, 245, 245);
+      for (int c = 4; c <= 11; c++) px(c, 0, white);
+      for (int c = 5; c <= 10; c++) px(c, -1, red);
+      for (int c = 7; c <= 11; c++) px(c, -2, red);
+      px(12, -2, red); px(13, -1, white);
+      break;
+    }
+    case HAT_LUCIA: {
+      uint16_t leaf = cdRgb(40, 150, 60), wax = cdRgb(250, 250, 240);
+      for (int c = 4; c <= 11; c++) px(c, 0, leaf);
+      for (int c : {5, 8, 10}) {
+        px(c, -1, wax); px(c, -2, wax);
+        px(c, -3, (step / 2 + c) % 3 ? cdRgb(255, 200, 40) : cdRgb(255, 120, 30));   // flicker
+      }
+      break;
+    }
+    case HAT_PARTY: {
+      static const uint16_t kStripe[3] = {0xF81F, 0x07FF, 0xFFE0};   // magenta, cyan, yellow
+      for (int c = 5; c <= 10; c++) px(c, -1, gfxTint(kStripe[c % 3]));
+      for (int c = 6; c <= 9; c++)  px(c, -2, gfxTint(kStripe[(c + 1) % 3]));
+      px(7, -3, gfxTint(kStripe[0])); px(8, -3, gfxTint(kStripe[1]));
+      px(7, -4, C_WHITE); px(8, -4, C_WHITE);
+      for (int k = 0; k < 6; k++)                     // confetti
+        g->fillRect(X0 + (k * 23 + step * 3) % W, Y0 + (k * 31 + step * 4) % H, 2, 2,
+                    gfxTint(kStripe[k % 3]));
+      break;
+    }
+    case HAT_FLOWERS: {
+      static const uint16_t kPetal[3] = {0xFB56, 0xFFE0, 0xFFFF};    // pink, yellow, white
+      for (int c = 4; c <= 11; c++) px(c, 0, c % 2 ? gfxTint(kPetal[(c / 2) % 3]) : cdRgb(40, 150, 60));
+      break;
+    }
+    default: break;
   }
 }
 
@@ -280,6 +419,7 @@ static void hourRain(Arduino_GFX* g, int cx, int baseline, int pct, uint16_t c) 
 
 void cpHours(Arduino_GFX* g, const Settings& s, const struct tm* t) {
   char buf[32];
+  struct tm tc = t ? *t : tm{};
   cdText(g, &commuteBold16, t ? kCdDays[t->tm_wday] : "Today", 10, 22, C_WHITE);
   if (weatherMissing(g, s, 120)) return;
   const Weather& w = commuteWeather();
@@ -311,27 +451,38 @@ void cpHours(Arduino_GFX* g, const Settings& s, const struct tm* t) {
   }
   g->drawFastHLine(10, 146, 220, C_DGRAY);
 
-  // Rain: when the chance first reaches 50% in the next 12 hours.
+  // Rain: the nowcast first (next 2 hours), else when the chance first
+  // reaches 50% in the next 12 hours.
+  bool soon = t && rainSoon(mktime(&tc), buf, sizeof(buf), false);
   int8_t rainAt = -1;
-  for (uint8_t i = 0; i < w.hourCount; i++)
-    if (w.hours[i].rain >= 50) { rainAt = (int8_t)i; break; }
-  if (rainAt == 0)      strlcpy(buf, "Rain likely now", sizeof(buf));
-  else if (rainAt > 0)  snprintf(buf, sizeof(buf), "Rain likely from %02d:00", w.hours[rainAt].hour);
-  else                  snprintf(buf, sizeof(buf), "Dry the next %u hours", w.hourCount);
-  cdText(g, &commuteBold16, buf, 10, 172, rainAt >= 0 ? gfxTint(kRainBlue) : C_WHITE);
+  if (!soon) {
+    for (uint8_t i = 0; i < w.hourCount; i++)
+      if (w.hours[i].rain >= 50) { rainAt = (int8_t)i; break; }
+    if (rainAt == 0)      strlcpy(buf, "Rain likely now", sizeof(buf));
+    else if (rainAt > 0)  snprintf(buf, sizeof(buf), "Rain likely from %02d:00", w.hours[rainAt].hour);
+    else                  snprintf(buf, sizeof(buf), "Dry the next %u hours", w.hourCount);
+  }
+  cdText(g, &commuteBold16, buf, 10, 172, soon || rainAt >= 0 ? gfxTint(kRainBlue) : C_WHITE);
 
   snprintf(buf, sizeof(buf), "Feels like %d\xC2\xB0", (int)lroundf(w.feels));
   cdText(g, &commuteReg16, buf, 10, 200, C_GRAY);
-  snprintf(buf, sizeof(buf), "Wind %d m/s", (int)lroundf(w.wind));
-  cdTextRight(g, &commuteReg16, buf, 230, 200, C_GRAY);
+  uint16_t wc;
+  windText(w, buf, sizeof(buf), wc);
+  cdTextRight(g, &commuteReg16, buf, 230, 200, wc);
 
-  if (w.sunrise[0]) {
-    snprintf(buf, sizeof(buf), "Sunrise %s", w.sunrise);
+  // The sun: rise to set, the day's length and its change from a week ago.
+  if (w.sunrise[0] && w.sunset[0]) {
+    snprintf(buf, sizeof(buf), "%s-%s", w.sunrise, w.sunset);
     cdText(g, &commuteReg16, buf, 10, 226, C_GRAY);
   }
-  if (w.sunset[0]) {
-    snprintf(buf, sizeof(buf), "Sunset %s", w.sunset);
-    cdTextRight(g, &commuteReg16, buf, 230, 226, C_GRAY);
+  int len, delta;
+  if (dayLength(s, t, len, delta)) {
+    char d[12];
+    snprintf(d, sizeof(d), "%+d min", delta);
+    int dw = cdTextW(g, &commuteBold16, d);
+    cdTextRight(g, &commuteBold16, d, 230, 226, delta >= 0 ? C_GREEN : cdRgb(255, 150, 40));
+    snprintf(buf, sizeof(buf), "%dh %02dm", len / 60, len % 60);
+    cdTextRight(g, &commuteReg16, buf, 230 - dw - 8, 226, C_GRAY);
   }
 }
 

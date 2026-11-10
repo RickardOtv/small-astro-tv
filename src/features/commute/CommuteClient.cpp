@@ -159,8 +159,11 @@ static void fetchWeather(const Settings& s) {
   url += F("&longitude=");
   url += String(s.clock.lon, 3);
   url += F("&current=temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,"
-           "weather_code,is_day"
-           "&hourly=temperature_2m,weather_code,precipitation_probability,is_day&forecast_hours=");
+           "wind_gusts_10m,weather_code,is_day"
+           "&minutely_15=precipitation&forecast_minutely_15=" );
+  url += COMMUTE_NOWCAST_SLOTS;
+  url += F("&hourly=temperature_2m,weather_code,precipitation_probability,wind_gusts_10m,is_day"
+           "&forecast_hours=");
   url += COMMUTE_HOURS;
   url += F("&daily=weather_code,temperature_2m_max,temperature_2m_min,"
            "precipitation_probability_max,sunrise,sunset&forecast_days=");
@@ -177,6 +180,7 @@ static void fetchWeather(const Settings& s) {
     w.feels    = cur["apparent_temperature"] | w.temp;
     w.humidity = cur["relative_humidity_2m"] | 0;
     w.wind     = cur["wind_speed_10m"] | 0.0f;
+    w.gust     = cur["wind_gusts_10m"] | w.wind;
     w.code     = cur["weather_code"] | -1;
     w.isDay    = (cur["is_day"] | 1) != 0;
 
@@ -189,7 +193,22 @@ static void fetchWeather(const Settings& s) {
       o.code  = h["weather_code"][i] | -1;
       o.temp  = r8(h["temperature_2m"][i] | 0.0f);
       o.rain  = h["precipitation_probability"][i] | 0;
+      o.gust  = r8(h["wind_gusts_10m"][i] | 0.0f);
       o.isDay = (h["is_day"][i] | 1) != 0;
+    }
+
+    // Nowcast times are local ("2026-11-10T13:45"); the offset makes them UTC.
+    JsonObjectConst m = doc["minutely_15"];
+    JsonArrayConst mt = m["time"];
+    if (mt.size()) {
+      char iso[24];
+      snprintf(iso, sizeof(iso), "%.16s:00Z", (const char*)(mt[0] | "1970-01-01T00:00"));
+      w.ncStart = commuteParseTime(iso) - (long)(doc["utc_offset_seconds"] | 0);
+      for (size_t i = 0; i < mt.size() && w.ncCount < COMMUTE_NOWCAST_SLOTS; i++) {
+        float mm = m["precipitation"][i] | 0.0f;
+        int tenths = (int)lroundf(mm * 10);
+        w.ncRain[w.ncCount++] = (uint8_t)(tenths > 255 ? 255 : tenths < 0 ? 0 : tenths);
+      }
     }
 
     JsonObjectConst d = doc["daily"];

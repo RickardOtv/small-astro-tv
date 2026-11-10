@@ -13,6 +13,7 @@ KEYS = {   # file key -> C macro
     "COMMUTE_TO_ID": "COMMUTE_DEF_TO_ID",
     "COMMUTE_TO_NAME": "COMMUTE_DEF_TO_NAME",
     "COMMUTE_WALK_MIN": "COMMUTE_DEF_WALK_MIN",
+    "COMMUTE_BIRTHDAY": "COMMUTE_DEF_BIRTHDAY",   # MM-DD: party hat that day
 }
 
 path = os.path.join(env.subst("$PROJECT_DIR"), "commute.env")
