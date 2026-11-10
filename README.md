@@ -1,17 +1,7 @@
 <h1 align="center">small-astro-tv</h1>
 
-<p align="center">A commute clock for the GeekMagic SmallTV Pro: time, weather and the next
-Västtrafik trip, with a pixel astronaut.</p>
-
-> A fork of [giovi321/smalltv-mod](https://github.com/giovi321/smalltv-mod) (WTFPL), which does
-> the hard parts: the board support, display driver, web UI and WiFi updates.
-> Not affiliated with GeekMagic, Västtrafik or Anthropic.
-
-
-Commute screens for the GeekMagic SmallTV Pro: the time, the weather
-(Open-Meteo) and the quickest Västtrafik trip between two stops, with a pixel
-astronaut who dresses for the weather. The other modes are compiled out of the
-Pro build. Code: `src/features/commute/`.
+<p align="center">A commute clock for the GeekMagic SmallTV Pro: the time, the weather and
+the next Västtrafik trip, with a pixel astronaut.</p>
 
 <p align="center">
   <img src="docs/small-astro-tv/overview.png" alt="Home, Home in the rain, Hours, Week and Trips screens" width="100%" />
@@ -20,308 +10,123 @@ Pro build. Code: `src/features/commute/`.
 <p align="center">
   <img src="docs/small-astro-tv/home.png" alt="Home: time, weather, next trip and the astronaut" width="30%" />
   <img src="docs/small-astro-tv/rain.png" alt="Home in the rain: the astronaut holds an umbrella and wears a scarf" width="30%" />
-  <img src="docs/small-astro-tv/sun.png" alt="Home on a sunny day" width="30%" />
+  <img src="docs/small-astro-tv/plants.png" alt="Plants: a 2x2 grid of pot plants with watering status" width="30%" />
 </p>
 
-<p align="center"><sub>Rendered from the firmware's own drawing code; stops and trips are examples.</sub></p>
+<p align="center"><sub>Rendered from the firmware's own drawing code; stops, trips and plants are examples.</sub></p>
 
-Pages (tap the button for the next one, hold it to go back to Home):
+> A fork of [giovi321/smalltv-mod](https://github.com/giovi321/smalltv-mod), which does the
+> hard parts: board support, display driver, web UI and WiFi updates. Not affiliated with
+> GeekMagic or Västtrafik.
 
-| Page  | Shows |
-|-------|-------|
-| Home  | date, big time, weather now, the next trip (lines, delay, minutes, arrival), the astronaut |
-| Hours | today's high and low; the next 8 hours in a row (icon, chance of rain from 20%, temperature); rain soon, feels-like, wind and gusts, sunrise to sunset, day length and its weekly change |
-| Week  | 7-day forecast |
-| Trips | the next three trips in detail |
-| Info  | WiFi, IP, firmware, uptime, memory, last fetches |
+## Screens
 
-The astronaut follows the weather (umbrella, snow, sun, scarf when cold),
-waves "GO!" when the next trip leaves within 2 minutes of the walk time,
-facepalms at a cancelled trip and sleeps while night mode dims the screen. It
-dresses for the season: a Santa hat in December, a Lucia crown on 13 December,
-a flower crown on Midsummer Eve and a party hat on the `COMMUTE_BIRTHDAY` set in
-`commute.env`.
+Tap the touch button for the next screen. Hold it to go back to Home (on Plants,
+holding waters the plants).
 
-Home and Hours use the 15-minute rain forecast ("Rain in 25 min", "Stops in
-10 min"), show gusts SMHI style ("Wind 5 (11) m/s", orange from 14 m/s), and
-Hours shows the day length and its change from a week ago.
+| Screen | Shows |
+|--------|-------|
+| Home   | date, big time, weather now, the quickest trip (lines, delay, minutes, arrival), the astronaut |
+| Hours  | the next 8 hours (icon, chance of rain, temperature), rain soon, feels-like, wind and gusts, sunrise to sunset, day length and its weekly change |
+| Week   | 7-day forecast |
+| Trips  | the next three trips with times and changes |
+| Plants | up to four plants that droop as watering falls due |
+| Info   | WiFi, IP, firmware, uptime, memory, last fetches |
 
-### Setup
+- **Trips** come from the Västtrafik journey planner, so changes, diversions and
+  replacement buses are included. A green dot means a live estimate.
+- **Rain soon** uses a 15-minute forecast: "Rain in 25 min", "Stops in 10 min".
+  Gusts are shown SMHI style, "Wind 5 (11) m/s", orange from 14 m/s.
+- **The astronaut** holds an umbrella in rain, wears a scarf in the cold, waves
+  "GO!" when it is time to leave, facepalms at a cancelled trip and sleeps at
+  night. Seasonal hats: Santa in December, Lucia on 13 December, flowers on
+  Midsummer Eve, a party hat on your birthday.
+- **Plants**: hold the button on the Plants screen to water everything due by
+  tomorrow. Home shows a drop by the date when a plant needs water.
+- **Night dimming** in the Display tab, e.g. 19:00 to 08:00.
 
-1. You need a Västtrafik developer account with an app subscribed to
-   **Planera Resa v4** (developer.vasttrafik.se). Its *Autentiseringsnyckel*
-   goes in the web UI, Commute tab, never in the code.
-2. Optional: copy `commute.env.example` to `commute.env` (gitignored) and fill
-   in your stops, to bake them in as defaults. Otherwise set them in the web UI.
-3. Build and install: see [Updating over WiFi](#updating-over-wifi), or the
-   upstream [Flashing](#flashing) steps for a first install.
+## Install
 
-### Watching the device
+You need a GeekMagic SmallTV Pro (classic ESP32, 8 MB, touch button on top).
 
-The device has no log you can read over WiFi; it answers a few JSON pages
-instead. Each is a snapshot of the moment you ask. With a web password set,
-add `--digest -u admin:<password>` to each curl call.
+1. **First install** from the stock firmware: browse to `http://<device-ip>/update`
+   and upload `small-astro-tv-firmware-esp32-pro.bin` from
+   [Releases](../../releases) or your own build. No cable or opening needed.
+2. **WiFi**: on first boot it opens a `SmallTV-Setup` hotspot. Join it, pick your
+   2.4 GHz network, save.
+3. **Trips**: create an app at [developer.vasttrafik.se](https://developer.vasttrafik.se)
+   subscribed to **Planera Resa v4**. In the web UI's Commute tab, paste its
+   *Autentiseringsnyckel* and set your two stops (stop area ids start with 9021).
+   The key stays on the device; it is never read back or built in.
+4. **Location** for the weather: Display tab, "Clock & night mode" card (defaults to Gothenburg).
+5. **Plants**: names and how often each wants water, in the Commute tab.
+6. Set a web UI password in the System tab.
 
-| Call | What it tells you |
-|------|-------------------|
-| `GET /api/commute` | the commute screens: current `page`; `data` = last trip fetch (`tripStatus`, `tripHttp`, `tripMs`, trips received and kept), weather age, largest free memory block (`maxBlock`); `button` = touch sensor reading (`raw`, `baseline`, press threshold `thrDown`), presses since boot, longest gap between button checks (`maxGapMs`, reset on each read) |
-| `POST /api/commute/page` | switch screens: `{"page":n}` or `{"next":true}`; needs `Content-Type: application/json` |
-| `GET /api/status` | uptime, free heap, WiFi signal, clock sync, and `reset`: why it last restarted |
+Upstream's [flashing guide](https://giovi321.github.io/smalltv-mod/getting-started/flashing/)
+covers backups and recovery over the UART header.
 
-Example: `curl --digest -u admin:$P http://<ip>/api/commute`.
+## Build and update
 
-The web UI shows the same: Commute tab, Screen card (page buttons and last
-fetch).
-
-**Crashes.** After a crash the device starts in safe mode and shows a CRASH
-screen until new firmware is uploaded. The Pro build records where it crashed
-(`src/PanicRecord.cpp`): `reset` in `/api/status` then reads
-`Exception/panic, trace <pc> <callers>`. Decode the addresses with:
-
-```bash
-~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32-elf-addr2line \
-  -pfiaC -e .pio/build/smalltv_esp32_8mb/firmware.elf <addresses>
-```
-
-**Full logs** need the USB cable: `pio device monitor -e smalltv_esp32_8mb`
-(115200 baud). The firmware prints little, but a crash prints a full backtrace.
-
-### Updating over WiFi
+Requires [PlatformIO](https://platformio.org/).
 
 ```bash
+cp commute.env.example commute.env   # optional: your stops and birthday as defaults (gitignored)
 pio run -e smalltv_esp32_8mb
 tools/ota_upload.py <ip> admin <password-file> .pio/build/smalltv_esp32_8mb/firmware.bin
 ```
 
-Use this rather than `curl --digest -F update=@...`: curl first sends the image
-without the password, and that refused upload crashes the device. Without a
-password, `curl -F update=@firmware.bin http://<ip>/update` works. The web UI
-upload (System tab) should be fine too, since the browser sends the password
-up front once logged in, but this is untested.
+`tools/ota_upload.py` sends the password with the upload. Don't use
+`curl --digest -F update=@...` on a password-protected device: curl first sends
+the image without the password, and that refused upload crashes the device.
+Without a password, `curl -F update=@firmware.bin http://<ip>/update` works.
 
-### Could go upstream
+The commute code lives in `src/features/commute/`. Fonts are generated from Inter
+by `tools/ttf_to_gfxfont.py`.
 
-Fixes here that would help giovi321/smalltv-mod too, not sent yet:
+## Diagnostics
+
+The device has no log over WiFi; it answers a few JSON endpoints instead. With a
+password set, add `--digest -u admin:<password>` to each curl call.
+
+| Endpoint | What it tells you |
+|----------|-------------------|
+| `GET /api/commute` | current page; last trip fetch (status, HTTP code, time, trips kept); weather age; largest free memory block; touch button readings and presses |
+| `POST /api/commute/page` | switch screens: `{"page":n}` or `{"next":true}` (JSON content type) |
+| `POST /api/commute/water` | water a plant: `{"plant":i}`, or `{"due":true}` for all due |
+| `GET /api/status` | uptime, free heap, WiFi signal, clock sync, why it last restarted |
+
+After a crash the device starts in safe mode with a CRASH screen until new
+firmware is uploaded. `reset` in `/api/status` then shows a trace; decode it with
+`xtensa-esp32-elf-addr2line -pfiaC -e .pio/build/smalltv_esp32_8mb/firmware.elf <addresses>`.
+Full logs need the UART header: `pio device monitor -e smalltv_esp32_8mb`.
+
+## Could go upstream
+
+Fixes that would help smalltv-mod too, not sent yet:
 
 - Buffered TLS reads (`ChunkReader` in `CommuteClient.cpp`): reading a large
   HTTPS reply byte by byte starved the touch button.
-- The OTA upload checks the password once per upload (`WebPortal.cpp`); and
-  `curl --digest` uploads still crash the device on their first,
-  unauthenticated pass (root cause not found).
+- The OTA upload checks the password once per upload (`WebPortal.cpp`); `curl
+  --digest` uploads still crash on their first, unauthenticated pass.
 - Crash trace on the ESP32 (`src/PanicRecord.cpp`).
 - Flicker-free full-screen redraws in RAM strips (`CommuteStrip.h`).
 
-### Credits
+## Credits
 
-- [smalltv-mod](https://github.com/giovi321/smalltv-mod) by giovi321, WTFPL.
+- [smalltv-mod](https://github.com/giovi321/smalltv-mod) by giovi321, and the hardware
+  notes it builds on.
 - Fonts rendered from [Inter](https://rsms.me/inter/) by Rasmus Andersson,
   [SIL Open Font License 1.1](https://openfontlicense.org).
 - Weather: [Open-Meteo](https://open-meteo.com). Trips: Västtrafik Planera Resa v4.
-- The astronaut is original pixel art.
-
----
-
-# Upstream: smalltv-mod
-
-The rest of this README is the upstream project's. Its stock ticker, Claude usage
-meter, radar and other boards still build from this code.
-
-<p align="center">
-  <a href="https://github.com/giovi321/smalltv-mod/actions/workflows/build.yml"><img src="https://github.com/giovi321/smalltv-mod/actions/workflows/build.yml/badge.svg?branch=main&amp;event=push" alt="Build"></a>
-  <a href="https://github.com/giovi321/smalltv-mod/actions/workflows/docs.yml"><img src="https://github.com/giovi321/smalltv-mod/actions/workflows/docs.yml/badge.svg?branch=main&amp;event=push" alt="Docs"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-WTFPL-blue.svg" alt="License: WTFPL"></a>
-  <img src="https://img.shields.io/badge/platform-ESP8266%20%7C%20ESP32--C2%20%7C%20ESP32-informational" alt="ESP8266, ESP32-C2, and ESP32">
-</p>
-
-<p align="center">
-  <a href="https://giovi321.github.io/smalltv-mod/"><img src="https://img.shields.io/badge/Read_the_docs-2563eb?style=for-the-badge&logo=readthedocs&logoColor=white" alt="Read the documentation"></a>
-</p>
-
-<p align="center"><b>Related projects</b></p>
-
-<div align="center">
-<table>
-  <tr>
-    <td align="center"><a href="https://giovi321.github.io/smalltv-studio/"><img src="https://img.shields.io/badge/SmallTV_Studio-1f2937?style=for-the-badge&amp;logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgLTYgNzAgNzAiIHJvbGU9ImltZyIgYXJpYS1sYWJlbD0ic21hbGx0di1zdHVkaW8iPgogIDxyZWN0IHg9IjciIHk9IjEzIiB3aWR0aD0iNTAiIGhlaWdodD0iMzgiIHJ4PSI2IiBmaWxsPSJub25lIiBzdHJva2U9IiMyMmM1NWUiIHN0cm9rZS13aWR0aD0iMyIvPgogIDxwb2x5bGluZSBwb2ludHM9IjE1LDM4IDIzLDMwIDMwLDM0IDM3LDIyIDQ0LDI4IDUwLDIwIiBmaWxsPSJub25lIiBzdHJva2U9IiMyMmM1NWUiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8%2BCiAgPHBhdGggZD0iTTI0IDUxIEwyNCA1NyBNNDAgNTEgTDQwIDU3IiBzdHJva2U9IiMyMmM1NWUiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8%2BCiAgPHBhdGggZD0iTTIwIDU3IEwyOCA1NyBNMzYgNTcgTDQ0IDU3IiBzdHJva2U9IiMyMmM1NWUiIHN0cm9rZS13aWR0aD0iMyIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8%2BCiAgPHBvbHlnb24gcG9pbnRzPSI1MCwyMCA1OC4xMywxOC4yMyA1MS43NywxMS44NyIgZmlsbD0iI2Y1Yzc4ZSIvPgogIDxwb2x5Z29uIHBvaW50cz0iNTAsMjAgNTMuNDksMTkuMjQgNTAuNzYsMTYuNTEiIGZpbGw9IiMyMmM1NWUiLz4KICA8cG9seWdvbiBwb2ludHM9IjU4LjEzLDE4LjIzIDYzLjc5LDEyLjU4IDU3LjQyLDYuMjEgNTEuNzcsMTEuODciIGZpbGw9IiNmNTllMGIiLz4KICA8cG9seWdvbiBwb2ludHM9IjYzLjc5LDEyLjU4IDY1LjkxLDEwLjQ1IDU5LjU1LDQuMDkgNTcuNDIsNi4yMSIgZmlsbD0iIzk0YTNiOCIvPgogIDxwb2x5Z29uIHBvaW50cz0iNjUuOTEsMTAuNDUgNjguNzQsNy42MyA2Mi4zNywxLjI2IDU5LjU1LDQuMDkiIGZpbGw9IiNmNDcyYjYiLz4KPC9zdmc%2BCg%3D%3D" alt="SmallTV Studio"></a><br><sub>Browser editor for theme clocks</sub></td>
-    <td align="center"><a href="https://github.com/giovi321/clawdmeter-daemon"><img src="https://img.shields.io/badge/clawdmeter--daemon-1f2937?style=for-the-badge&amp;logo=claude&amp;logoColor=d97757" alt="clawdmeter-daemon"></a><br><sub>Sends your Claude usage to the device</sub></td>
-  </tr>
-</table>
-</div>
-
-> Not affiliated with GeekMagic or Anthropic. This firmware replaces the stock firmware entirely.
-
-The GeekMagic SmallTV is a cheap desk gadget: a little cube with a 1.54" colour screen, an ESP inside, and a USB-C port. This firmware throws away the stock apps and turns it into three things you actually watch. It shows a **stock and crypto ticker** with prices, change, and a sparkline. It flips into a **Claude usage meter** with an animated mascot and your 5-hour and 7-day usage bars. And it becomes a **live plane radar** centred on your location, pulled from a free public feed. One image carries all three; you switch between them in a built-in web UI, and you update over WiFi.
-
-This firmware builds four images from one codebase, covering six devices. The original SmallTV runs an **ESP8266**; the **SmallTV-ultra** is the same ESP-12F hardware and screen, but its stock "Ultra" firmware and flash partitions block a normal OTA of this image, so it takes a two-step loader install (see [Flashing](#flashing)). The **SDPro Smart Weather Clock**, an unbranded SmallTV-ultra clone sold on AliExpress and Temu with `SDPro_V1.x` firmware, is the same ESP8266 hardware again and installs the same way, confirmed working by a community tester in [issue #76](https://github.com/giovi321/smalltv-mod/issues/76). A second version sold under the same "smart weather clock" look uses an **ESP32-C2 (ESP8684)** instead. A third build targets the **NMMiner NM-TV-154** (PCB marked "NM-TV-Miner"), a classic-ESP32 BTC lottery miner in the same cube with the same screen, confirmed working by a community tester in [issue #1](https://github.com/giovi321/smalltv-mod/issues/1). A fourth build targets the **GeekMagic SmallTV Pro**, a classic ESP32 with 8 MB flash and a touch button, confirmed working on hardware. Pick yours below.
-
-<p align="center">
-  <img src="docs/public/assets/screen.svg" alt="The SmallTV running its three modes: stock ticker, Claude usage, and plane radar" width="900" />
-</p>
-
-<p align="center">
-  <img src="docs/public/assets/screen2.svg" alt="Three more SmallTV screens: a Home Assistant screen pushed over MQTT, a notification overlay, and the Pixel Room theme clock" width="900" />
-</p>
-
-## Which one do I have
-
-Check the board before you build, because the variants flash differently.
-
-| | SmallTV (ESP8266) | SmallTV-ultra | SDPro Smart Weather Clock | SmallTV (ESP32-C2) | NM-TV-154 (ESP32) | SmallTV Pro (ESP32) |
-|---|---|---|---|---|---|---|
-| Photo | <img src="docs/public/assets/product-8266.png" alt="The SmallTV (ESP8266)" width="240"> | <img src="docs/public/assets/product-ultra.png" alt="The SmallTV-ultra" width="240"> | <img src="docs/public/assets/product-sdpro.png" alt="The SDPro Smart Weather Clock" width="240"> | <img src="docs/public/assets/product-c2.png" alt="The SmallTV (ESP32-C2)" width="240"> | <img src="docs/public/assets/product-esp32.png" alt="The NM-TV-154 (ESP32)" width="240"> | <img src="docs/public/assets/product-pro.png" alt="The GeekMagic SmallTV Pro" width="240"> |
-| MCU | ESP-12F (ESP8266), 4 MB flash | same ESP-12F (ESP8266), 4 MB flash | ESP-12 (ESP8266), 4 MB flash | ESP32-C2 / ESP8684, 4 MB flash | ESP32-WROOM-32E, 4 MB flash | classic ESP32, 8 MB flash |
-| Build env | `smalltv`, or `smalltv_lean` | `smalltv` (same image, `smalltv_loader` to install) | `smalltv` (same image, `smalltv_loader` to install) | `smalltv_c2` | `smalltv_esp32`, or `smalltv_esp32_wg` | `smalltv_esp32_8mb` |
-| Display | 1.54" 240×240 IPS ST7789 | same panel | same panel and pin map | same panel, RGB order | same panel | same panel |
-| Flashing | OTA from the stock web UI, or UART header | two-step [loader](#flashing) then OTA, or UART | the same two steps with the loader renamed to `SDP…`, or UART | USB-C via the onboard CH340C (esptool) | USB via esptool | OTA from the stock web UI, or UART header |
-| WireGuard VPN | no, the chip has neither the flash nor the heap | no, same chip | no, same chip | yes | yes, in the separate `-esp32-wg` image; the default image leaves it out to keep flash headroom | yes, the 8 MB layout has room to spare |
-| Tell-tale | ESP8266 module, no USB-serial chip | stock firmware branded "Ultra", OTA of this image fails with "Not Enough Space" | stock firmware `SDPro_V1.x`, whose update page refuses a file name not starting with `SDP`; USB-C is power only | CH340C chip next to the USB-C port | PCB reads "NM-TV-Miner" | sold as "SmallTV Pro", touch button on top |
-
-The screens in the photos above are each unit's **stock firmware**, not this one, and they differ by model and firmware version (the ultra ships as a weather clock, the original as a ticker, and so on). Use the on-screen look as a first clue to which model you are holding, then confirm with the tell-tale row, because the binary and the install method differ per model. If your board has a **CH340C** chip beside the USB-C port and the main chip reads **ESP8684**, you have the ESP32-C2 model. Full teardown photos and pin maps are in [Hardware and variants](https://giovi321.github.io/smalltv-mod/getting-started/hardware/).
-
-## What it does
-
-- **Stock and crypto ticker.** Price, absolute change, percent change with an up/down arrow, and a sparkline. Up to 8 symbols rotate on a timer. Data comes straight from Yahoo Finance over HTTPS with no backend, from cash.ch for Swiss instruments Yahoo doesn't carry (structured products, AMCs, tracker certificates), or from your own webhook if you want to own the source. Stocks, ETFs, Swiss equities (`NESN.SW`), crypto (`BTC-USD`), and FX (`EURUSD=X`) all work. Add a quantity and cost basis to any ticker and it shows your P/L, with a portfolio summary page in the rotation.
-- **Claude usage meter.** An animated pixel mascot plus your 5-hour and 7-day usage as big percentages with fill bars and reset countdowns. It needs the [clawdmeter-daemon](https://github.com/giovi321/clawdmeter-daemon) running on your PC, which reads the usage and sends it over WiFi; the screen shows only an idle animation without it. When the data stops, the mascot plays an idle animation until it comes back. Plans without a 5-hour limit can hide that card in the web UI and get a single 7-day layout with an even-pace marker. Running several devices, the daemon discovers them over mDNS and pushes to all of them.
-- **Plane radar.** A scope centred on your location with nearby aircraft as heading triangles, speed vectors, and callsign or altitude labels, from the free [adsb.lol](https://adsb.lol) or [adsb.fi](https://adsb.fi) APIs or a LAN webhook. Marker size, an altitude filter, and label decluttering are configurable.
-- **Home Assistant screens over MQTT.** Publish a small JSON draw list to a LAN broker and the device shows it as a full 240×240 screen. Each carousel slot gets one retained message, and the device rotates through them. Not included in the lean ESP8266 image. See [Home Assistant screens](https://giovi321.github.io/smalltv-mod/features/ha/).
-- **Custom theme clocks.** Install declarative `.stheme` packages from the Display tab: background images, animated sprites, clock/date text, scrolling text, simple and rounded shapes, and bounded JSON data fields such as `{weather.temp}`. Themes live in storage and need no firmware recompilation. Notifications remain above them. Design your own in [SmallTV Studio](https://giovi321.github.io/smalltv-studio/), a browser-based editor that runs with nothing to install, or start from [Pixel Room](examples/themes/pixel-room.stheme). Follow the [theme authoring guide](https://giovi321.github.io/smalltv-mod/features/themes/).
-- **Brightness that follows the sun.** Give the device a location and it works out sunrise and sunset itself, then fades the screen down at sunset and back up at sunrise. The lowest level and both fade lengths are set in the web UI, and the schedule can sit next to night mode with a choice of which wins. Nothing is fetched for it, but it needs the clock (NTP). See [Sunrise and sunset brightness](https://giovi321.github.io/smalltv-mod/features/sun/).
-- **Web UI for everything.** Join WiFi (up to 4 saved networks), pick the mode or a carousel that rotates through them, manage the symbol list, set brightness, orientation, and the panel's colour balance, set an NTP timezone and a nightly dimming schedule (night brightness, 0 = screen off), and back up or restore the whole configuration as a file. First boot creates a `SmallTV-Setup` hotspot with a captive portal.
-- **WireGuard VPN, on the ESP32-C2, the SmallTV Pro and the NM-TV-154.** A built-in tunnel, so you can reach the device from outside your LAN without forwarding its plain-HTTP port to the internet. Configured in the WiFi tab: private key, peer public key, endpoint, tunnel address, allowed IPs. Three crash reboots in a row hold the tunnel down at the next boot, so a bad tunnel config cannot lock you out of the settings page. The ESP8266 boards cannot have it at all, and on the NM-TV-154, whose image is the tightest fit of the three ESP32 boards, it ships as a second image rather than in the default one. See [WireGuard VPN](https://giovi321.github.io/smalltv-mod/features/wireguard/) for the numbers.
-- **Physical touch button, on the classic-ESP32 boards (SmallTV Pro and NM-TV-154).** The capacitive button (GPIO32, touch channel T9) reads as pressed when its `touchRead()` value drops below a share of an idle baseline calibrated at boot, so no fixed threshold is hard-coded; a median-of-three read plus hysteresis and a debounce reject touch glitches. A short tap and a long press (held ≥ 600 ms) each run a configurable action, chosen in the Button card of the web UI: do nothing, blink the screen off for ~1 s, jump Home (first page, resume the carousel), go to the Next page (pausing the carousel on it), show the network / IP screen briefly, wake the screen to full brightness for a few seconds (lifting the nightly dimming), or acknowledge the active notification overlay so it clears at once. The touch sensitivity (50–99 % of the baseline) is adjustable there too, and the card only appears on a board that wires a button.
-- **Optional password on the web UI.** Off by default, so nothing changes unless you want it to. Set a password in the System tab (typed twice) and the settings page, the API, and the firmware upload all sit behind HTTP digest auth, which keeps the password off the wire on a plain-HTTP LAN. The clawdmeter push endpoint stays open, since the daemon cannot send credentials and can only change what the screen shows. A "Remove password" button opens the page again while you can still log in. There is no recovery for a forgotten password other than reflashing over a cable.
-- **Updates over WiFi.** Every board pulls the newest release from GitHub itself from the web UI's System tab, or takes a manual firmware upload from the browser. On the ESP8266 the download runs at boot (the device reboots twice). **Warning: ESP8266 devices on firmware 2.6.1 or older cannot self-update** (the updater itself was broken; it fails with "connection failed"). Update those once manually: upload `smalltv-mod-firmware.bin` from the [Releases page](https://github.com/giovi321/smalltv-mod/releases) in the System tab. From 2.7.0 on, self-update works everywhere.
-
-## Design your own clock face
-
-[SmallTV Studio](https://github.com/giovi321/smalltv-studio) is a visual editor for theme clocks. [Open it in your browser](https://giovi321.github.io/smalltv-studio/): nothing to install, and nothing leaves your machine except what you send to your own SmallTV. Stack text, image, animation, and shape layers on a 240×240 canvas, preview the clock at any simulated time, bind fields to JSON data sources, then export a `.stheme` package or send it straight to the device over WiFi. Pixel Room, Terminal Ops, and Live Status load as examples to start from.
-
-<p align="center">
-  <a href="https://giovi321.github.io/smalltv-studio/"><img src="docs/public/assets/studio.png" alt="SmallTV Studio editing the Pixel Room theme: layer list, live 240×240 canvas, and the clock layer's inspector" width="900" /></a>
-</p>
-
-<p align="center">
-  <a href="https://giovi321.github.io/smalltv-studio/"><img src="https://img.shields.io/badge/Open_SmallTV_Studio-22c55e?style=for-the-badge&logoColor=white" alt="Open SmallTV Studio"></a>
-</p>
-
-## Get the firmware
-
-You do not need a toolchain. GitHub Actions builds the images for all the boards.
-
-- Every push: the **Actions** tab, latest `build` run, download the firmware artifact.
-- Tagged releases (`vX.Y.Z`): attached to the [Releases](../../releases) page.
-
-Eleven files come with each release. Pick by board first, then by whether you are installing for the first time or updating:
-
-| File | Board | Use it for |
-|------|-------|-----------|
-| `smalltv-mod-firmware.bin` | SmallTV, SmallTV-ultra, SDPro (ESP8266) | The normal install and every later update |
-| `smalltv-mod-firmware-lean.bin` | Same ESP8266 boards | The same device when it needs more heap. HA screens, the usage meter and theme clocks are compiled out |
-| `smalltv-mod-loader.bin` | SmallTV-ultra, SDPro (ESP8266) | One-time first install when the stock updater rejects the full image |
-| `smalltv-mod-firmware-c2.bin` | SmallTV (ESP32-C2) | Updates |
-| `smalltv-mod-firmware-c2.factory.bin` | SmallTV (ESP32-C2) | First install over USB-C |
-| `smalltv-mod-firmware-esp32.bin` | NM-TV-154 (ESP32) | Updates |
-| `smalltv-mod-firmware-esp32.factory.bin` | NM-TV-154 (ESP32) | First install over USB |
-| `smalltv-mod-firmware-esp32-wg.bin` | NM-TV-154 (ESP32) | The same board when you want the WireGuard tunnel. Updates |
-| `smalltv-mod-firmware-esp32-wg.factory.bin` | NM-TV-154 (ESP32) | The same, first install over USB |
-| `smalltv-mod-firmware-esp32-pro.bin` | SmallTV Pro (ESP32, 8 MB) | First install over the stock web UI, and every later update |
-| `smalltv-mod-firmware-esp32-pro.factory.bin` | SmallTV Pro (ESP32, 8 MB) | Direct install or recovery over the UART header |
-
-The names follow one pattern, `smalltv-mod-<image>[-<target>][.factory].bin`. No target suffix means the original ESP8266; `-lean`, `-c2`, `-esp32`, `-esp32-wg`, and `-esp32-pro` name the others. A `.factory` image is the merged bootloader, partition table, and app, written at offset `0x0` over a cable; without it the file is an app image sized for an OTA slot. The System tab shows which variant a device runs, and self-update keeps it on that variant. Full detail in [Which release file to download](https://giovi321.github.io/smalltv-mod/reference/release-assets/).
-
-Or [build it yourself](#building-from-source).
-
-## Flashing
-
-The right method depends on your board. The steps below are the short version; the [Flashing guide](https://giovi321.github.io/smalltv-mod/getting-started/flashing/) covers recovery, backups, and troubleshooting.
-
-**SmallTV (ESP8266).** The stock firmware exposes an OTA updater, so you can install this without opening the device. Find its IP, browse to `http://<device-ip>/update`, and upload `smalltv-mod-firmware.bin`, or `smalltv-mod-firmware-lean.bin` for the build that trades Home Assistant screens, the usage meter and theme clocks for about 8 KB more heap. Back up the stock image first if you might want it back.
-
-**SmallTV-ultra.** Same ESP8266 hardware, but the stock "Ultra" firmware reserves most of the flash for image storage, so its OTA slot is too small for `smalltv-mod-firmware.bin` and rejects it with `Not Enough Space`. Install in two steps, no soldering: flash `smalltv-mod-loader.bin` at `http://<device-ip>/update` (it fits the small slot), join the open `SmallTV-Loader` AP it opens at `192.168.4.1`, then upload `smalltv-mod-firmware.bin` at `http://192.168.4.1/update`. UART is the fallback (`esptool write_flash 0x0 smalltv-mod-firmware.bin`).
-
-**SDPro Smart Weather Clock.** Confirmed working in [issue #76](https://github.com/giovi321/smalltv-mod/issues/76). Its stock update page checks only, in the browser, that the file name starts with `SDP`, and it takes at most about 550 KB, so the full image does not fit. Rename `smalltv-mod-loader.bin` to `SDP_loader.bin`, upload it through the stock update page, then continue at `http://192.168.4.1/update` as for the SmallTV-ultra. The USB-C port is power only and the unit has no button, so a failed flash can only be recovered over the ESP-12 UART pads. Find them, and back up the stock image (`esptool read_flash 0x0 0x400000 stock-backup.bin`), before you start.
-
-**SmallTV (ESP32-C2).** Flash over the USB-C cable with esptool, which talks to the onboard CH340C. Auto-reset works, so no button is needed. Back up the stock image first, then write `smalltv-mod-firmware-c2.factory.bin` from the [Releases](../../releases) page:
-
-```bash
-# back up the original 4 MB image first
-python -m esptool --chip esp32c2 --port COM3 read_flash 0x0 0x400000 stock-backup.bin
-
-# write this firmware (merged image at 0x0)
-python -m esptool --chip esp32c2 --port COM3 --baud 921600 write_flash 0x0 smalltv-mod-firmware-c2.factory.bin
-```
-
-**NM-TV-154 (ESP32).** Flash over USB with esptool the same way as the C2, with `--chip esp32` and `smalltv-mod-firmware-esp32.factory.bin` from the [Releases](../../releases) page (or a local `pio run -e smalltv_esp32` build). Back up the stock image first (`read_flash 0x0 0x400000 stock-backup.bin`).
-
-**SmallTV Pro (ESP32, 8 MB).** No USB-serial chip: the USB-C port is power only. Install over the air from the stock web UI: browse to `http://<device-ip>/update` and upload `smalltv-mod-firmware-esp32-pro.bin` (this firmware's partition layout matches stock, so the stock updater takes it directly). To back up the stock image first (recommended, since it is not redistributed anywhere), or to recover, open the case and wire a 3.3 V USB-UART adapter to the internal header: `read_flash 0x0 0x800000 stock-backup.bin`, and `write_flash 0x0 smalltv-mod-firmware-esp32-pro.factory.bin` for a direct install.
-
-After the first flash, every board updates from the browser under the web UI's System tab.
-
-## First-time setup
-
-1. On first boot the device shows **SETUP MODE** and creates an open `SmallTV-Setup` hotspot.
-2. Join it. A captive portal should open; if not, browse to `http://192.168.4.1`.
-3. Open **WiFi**, scan, pick your 2.4 GHz network, enter the password, and save. The device reboots and joins.
-4. It shows the network, its IP, and its `http://<hostname>.local` address on screen. Browse to either one.
-5. Add a few tickers under **Ticker** (for example `AAPL`, `NESN.SW`, `BTC-USD`). Each ticker picks its own source; Yahoo Finance is the default, so it works immediately.
-
-The [First-time setup guide](https://giovi321.github.io/smalltv-mod/getting-started/setup/) walks through the web UI tab by tab.
-
-## Documentation
-
-Full docs live at **[giovi321.github.io/smalltv-mod](https://giovi321.github.io/smalltv-mod/)**:
-
-- Received one already set up (as a gift, say)? Start at the [user manual](https://giovi321.github.io/smalltv-mod/manual/quick-start/) instead, no technical background assumed
-- [Hardware and variants](https://giovi321.github.io/smalltv-mod/getting-started/hardware/) with pin maps for every board
-- [Flashing](https://giovi321.github.io/smalltv-mod/getting-started/flashing/) and [first-time setup](https://giovi321.github.io/smalltv-mod/getting-started/setup/)
-- The three modes: [ticker](https://giovi321.github.io/smalltv-mod/features/ticker/), [Claude usage](https://giovi321.github.io/smalltv-mod/features/usage/), [plane radar](https://giovi321.github.io/smalltv-mod/features/radar/)
-- [WireGuard VPN](https://giovi321.github.io/smalltv-mod/features/wireguard/) for reaching the device from outside your network, and [Notifications](https://giovi321.github.io/smalltv-mod/features/notify/) for pushing an alert to the screen
-- [Theme clocks](https://giovi321.github.io/smalltv-mod/features/themes/), designed in [SmallTV Studio](https://giovi321.github.io/smalltv-studio/)
-- [Data sources](https://giovi321.github.io/smalltv-mod/reference/data-sources/), [building from source](https://giovi321.github.io/smalltv-mod/reference/building/), and [recovery](https://giovi321.github.io/smalltv-mod/reference/recovery/)
-
-## 3D-printed case
-
-A flat desk case with a stand lives in [case/](case/): an STL ready to slice, plus a preview render.
-
-## Building from source
-
-Requires [PlatformIO](https://platformio.org/). Pick the env for your board:
-
-```bash
-pio run -e smalltv                 # ESP8266
-pio run -e smalltv_lean            # ESP8266, without HA screens, the usage meter or theme clocks
-pio run -e smalltv_c2              # ESP32-C2
-pio run -e smalltv_esp32           # NM-TV-154 (classic ESP32)
-pio run -e smalltv_esp32_wg        # the same, with the WireGuard client
-pio run -e smalltv_esp32_8mb       # SmallTV Pro (classic ESP32, 8 MB)
-pio run -e smalltv_c2 -t upload    # build + flash the C2 over USB-C
-pio device monitor -e smalltv_c2   # serial logs @ 115200
-```
-
-The six images build from one codebase. Chip differences live in `src/Platform.h` and the per-board pin headers (`src/board_esp8266.h`, `src/board_esp32c2.h`, `src/board_esp32.h`, `src/board_esp32_pro.h`); the three feature modes and the web UI are identical across all of them. `src/Target.h` checks that each env selects exactly one chip, and CI fails any image left with less than 8 KB free in its update slot. See [Building from source](https://giovi321.github.io/smalltv-mod/reference/building/) for the project layout and the ESP32 toolchain notes.
-
-The PC-side usage daemon lives in its own repo: [clawdmeter-daemon](https://github.com/giovi321/clawdmeter-daemon).
-
-## Related projects
-
-[SmallTV Pomodoro](https://github.com/davicorrea0/smalltv-pomodoro) is a separate alternative firmware for the SmallTV-ultra (ESP8266): a Pomodoro timer with a pixel-art tomato, installable clock faces, a weather forecast, a photo and GIF album, and a web panel in English, Portuguese, and Spanish. It replaces the stock firmware the same way this one does, so a device runs one or the other. The two projects are working on a shared theme format, so that a clock face designed in [SmallTV Studio](https://giovi321.github.io/smalltv-studio/) runs on both ([#31](https://github.com/giovi321/smalltv-mod/issues/31)). SmallTV Pomodoro is GPL-3.0 licensed.
-
-## Credits and references
-
-- GeekMagic SmallTV and SmallTV-Pro, the original product and stock firmware ([GeekMagicClock/smalltv-pro](https://github.com/GeekMagicClock/smalltv-pro)).
-- Pin maps and hardware notes from the ESPHome and Tasmota communities:
-  - [ViToni/esphome-geekmagic-smalltv](https://github.com/ViToni/esphome-geekmagic-smalltv)
-  - [Installing ESPHome on a new smart weather clock (HA community)](https://community.home-assistant.io/t/installing-esphome-on-new-smart-weather-clock-wifi-weather-station-display/1006172), which documented the ESP32-C2 pin map
-  - [Puddle of Code, My Own GeekMagic SmallTV](https://puddleofcode.com/story/my-own-geekmagic-smalltv/)
-  - [NMMiner's NM-TV-154 custom firmware guide](https://www.nmminer.com/2026/03/02/how-to-develop-nm-tv-custom-firmware/), which documents the NM-TV-154 pin map
-- The plane radar's look reimplements [MatixYo/ESP32-Plane-Radar](https://github.com/MatixYo/ESP32-Plane-Radar), a sonar-style ADS-B radar for a 1.28" round display: heading triangles, speed vectors, callsign and altitude tags, and rim dots for out-of-range traffic all come from that design.
-- Claude usage mode reimplements [clawdmeter](https://github.com/HermannBjorgvin/Clawdmeter) for this hardware; the mascot frames come from [claudepix](https://claudepix.vercel.app).
 - Libraries: [Arduino_GFX](https://github.com/moononournation/Arduino_GFX), [ArduinoJson](https://arduinojson.org/).
+- The astronaut and the plants are original pixel art.
 
-## Disclaimer
+The other smalltv-mod features (stock ticker, plane radar, Claude usage meter,
+themes, other boards) are still in the code but compiled out of the Pro build;
+see [upstream](https://github.com/giovi321/smalltv-mod) for those.
 
-This firmware and the companion daemon are provided as-is, with no warranty of any kind. You flash and use them at your own risk, including the risk of bricking the device. You are responsible for checking that your use complies with the terms of any service it connects to, including Anthropic's terms for the Claude usage meter and the terms of the market and flight data feeds. Nothing in this repo is legal advice. This project is not affiliated with or endorsed by GeekMagic, Anthropic, or any data provider.
+Provided as-is, no warranty; you flash at your own risk.
 
 ## License
 
-[WTFPL](LICENSE). Do What The F*ck You Want To Public License.
+[WTFPL](LICENSE).

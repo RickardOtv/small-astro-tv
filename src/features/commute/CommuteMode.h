@@ -22,6 +22,10 @@ class CommuteMode : public DisplayMode {
   void nextPage();
   void home();
   void setPage(uint8_t page);
+  // A long press: on the Plants screen it waters what is due (and saves);
+  // returns false elsewhere, where a long press goes home.
+  bool longPress(Settings& s);
+  void showWatered(uint8_t mask);   // splash after watering from the web UI
   uint8_t page() const { return page_; }
 
  private:
@@ -33,6 +37,8 @@ class CommuteMode : public DisplayMode {
   uint32_t animAtMs_ = 0;
   bool     needRender_ = true;
   Arduino_Canvas* astro_ = nullptr;   // off-screen buffer for the astronaut corner
+  uint8_t  wateredMask_ = 0;          // plants in the watering splash
+  uint32_t wateredAtMs_ = 0;
 };
 
 extern CommuteMode g_commuteMode;

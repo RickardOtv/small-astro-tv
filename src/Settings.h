@@ -194,6 +194,13 @@ struct RadarSettings {
 // Västtrafik Planera Resa v4 journey planner; authKey (the portal's "Autentiseringsnyckel",
 // base64 of clientId:secret) is a secret like the passwords above: config file
 // and settings export only, never the web API.
+// One plant on the Plants screen; a blank name means the slot is unused.
+struct PlantSettings {
+  String   name;
+  uint8_t  everyDays;     // wants water every N days
+  uint32_t wateredAt;     // epoch seconds, 0 = never
+};
+
 struct CommuteSettings {
   String   authKey;       // Västtrafik Autentiseringsnyckel
   String   stopGid;       // origin stop area id, 16 digits
@@ -202,6 +209,7 @@ struct CommuteSettings {
   String   toName;        // its label on screen
   uint16_t pollSec;       // trip refresh period
   uint8_t  walkMin;       // hide trips leaving sooner than this (minutes)
+  PlantSettings plants[MAX_PLANTS];
 
   void setDefaults();
   void toJson(JsonObject o, bool includeSecrets) const;

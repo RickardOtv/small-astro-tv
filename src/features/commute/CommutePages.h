@@ -12,6 +12,7 @@ enum CommutePage : uint8_t {
   PAGE_HOURS,          // today: next 12 hours, icon, rain %, temperature
   PAGE_WEEK,           // 7-day forecast
   PAGE_TRIPS,          // next trips in detail
+  PAGE_PLANTS,         // watering schedule; hold the button to water
   PAGE_INFO,           // network and device status
   PAGE_COUNT
 };
@@ -34,6 +35,8 @@ void cpHours(Arduino_GFX* g, const Settings& s, const struct tm* t);
 void cpWeek(Arduino_GFX* g, const Settings& s);
 void cpTrips(Arduino_GFX* g, const Settings& s, time_t now);
 void cpInfo(Arduino_GFX* g, const Settings& s, const CommuteInfo& info);
+// `watered`: bit mask of plants just watered (splash), 0 = none.
+void cpPlants(Arduino_GFX* g, const Settings& s, time_t now, uint8_t watered);
 
 // The astronaut dresses for the weather and the season, waves when it is time
 // to leave, sleeps in night mode and facepalms at a cancelled trip.

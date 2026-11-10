@@ -210,7 +210,11 @@ static void buttonAckNotify() {
 static void buttonGoHome() {
 #if WITH_COMMUTE
   // The commute screens page through themselves: back to the overview.
-  if (g_settings.mode == MODE_COMMUTE) { g_commuteMode.home(); return; }
+  // On the Plants screen a long press waters the plants instead.
+  if (g_settings.mode == MODE_COMMUTE) {
+    if (!g_commuteMode.longPress(g_settings)) g_commuteMode.home();
+    return;
+  }
 #endif
   g_carPaused = false;                 // resume normal rotation
   if (g_settings.mode == MODE_CAROUSEL && kModeCount > 0) {

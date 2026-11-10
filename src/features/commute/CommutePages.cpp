@@ -5,6 +5,7 @@
 #include "CommuteClient.h"
 #include "Clock.h"
 #include "SunTimes.h"
+#include "CommutePlants.h"
 
 static const uint16_t kRainBlue = 0x551F;   // ~ (80,160,255)
 
@@ -179,6 +180,12 @@ void cpHome(Arduino_GFX* g, const Settings& s, const struct tm* t, time_t now) {
     cdText(g, &commuteBold16, kCdDays[t->tm_wday], 10, 22, C_WHITE);
     snprintf(buf, sizeof(buf), "%d %s", t->tm_mday, kCdMonths[t->tm_mon]);
     cdTextRight(g, &commuteReg16, buf, 230, 22, C_GRAY);
+    if (plantsNeedWater(s.commute, now)) {           // a plant is thirsty: a drop by the date
+      int dx = 230 - cdTextW(g, &commuteReg16, buf) - 12;
+      uint16_t b = gfxTint(kRainBlue);
+      g->fillCircle(dx, 15, 4, b);
+      g->fillTriangle(dx - 4, 14, dx + 4, 14, dx, 6, b);
+    }
     snprintf(buf, sizeof(buf), "%02d:%02d", t->tm_hour, t->tm_min);
   } else {
     strlcpy(buf, "--:--", sizeof(buf));
@@ -589,6 +596,101 @@ void cpTrips(Arduino_GFX* g, const Settings& s, time_t now) {
     cdFit(g, &commuteReg16, buf, 230 - cx, fitted, sizeof(fitted));
     cdText(g, &commuteReg16, fitted, cx, y + 47, C_GRAY);
     if (i + 1 < n) g->drawFastHLine(10, y + 60, 220, C_DGRAY);
+  }
+}
+
+// ===========================================================================
+// Plants: a 2x2 grid of pot plants that droop as watering falls due
+// ===========================================================================
+// 16x16 pixel art drawn 3x: '.' empty, 'L' leaf, 'D' dark leaf, 'S' stem,
+// 'P' pot, 'R' pot rim, 'E' earth. Leaf colours change with the plant's state.
+static const char* const kPlantHappy[16] = {
+  "......LL........", ".....LLDL..LL...", "....LLDDL.LDLL..", "....LDDL..LDDL..",
+  "..LL.LSL.LDDL...", ".LDDL.S.LLL.....", ".LDDDLS.SL......", "..LLDLS.S.......",
+  "....LLSS........", "......S.........", "..RRRRRRRRRRRR..", "..RREEEEEEEERR..",
+  "...PPPPPPPPPP...", "...PPPPPPPPPP...", "....PPPPPPPP....", "....PPPPPPPP....",
+};
+static const char* const kPlantDroop[16] = {
+  "................", "................", ".....SS.........", "....S..S........",
+  "...LS...SL......", "..LDL...LDL.....", ".LDDL.S.LDDL....", ".LDL..S..LDL....",
+  ".LL...S...LL....", "......S.........", "..RRRRRRRRRRRR..", "..RREEEEEEEERR..",
+  "...PPPPPPPPPP...", "...PPPPPPPPPP...", "....PPPPPPPP....", "....PPPPPPPP....",
+};
+
+static void drawPlant(Arduino_GFX* g, int x, int y, int dueIn) {
+  bool droop = dueIn <= 0;
+  // Healthy green, yellowing when due, brown when late.
+  uint16_t leaf = dueIn > 0 ? cdRgb(80, 190, 90) : dueIn == 0 ? cdRgb(190, 190, 70) : cdRgb(160, 110, 60);
+  uint16_t dark = dueIn > 0 ? cdRgb(40, 130, 60) : dueIn == 0 ? cdRgb(140, 140, 40) : cdRgb(110, 70, 40);
+  const char* const* rows = droop ? kPlantDroop : kPlantHappy;
+  for (int r = 0; r < 16; r++)
+    for (int c = 0; c < 16; c++) {
+      uint16_t col;
+      switch (rows[r][c]) {
+        case 'L': col = leaf; break;
+        case 'D': col = dark; break;
+        case 'S': col = dark; break;
+        case 'P': col = cdRgb(200, 100, 60); break;
+        case 'R': col = cdRgb(225, 125, 80); break;
+        case 'E': col = cdRgb(90, 60, 40); break;
+        default: continue;
+      }
+      g->fillRect(x + c * 3, y + r * 3, 3, 3, col);
+    }
+}
+
+void cpPlants(Arduino_GFX* g, const Settings& s, time_t now, uint8_t watered) {
+  char buf[32];
+  cdText(g, &commuteBold16, "Plants", 10, 22, C_WHITE);
+  if (watered) {
+    uint8_t n = 0;
+    for (uint8_t k = 0; k < MAX_PLANTS; k++) n += (watered >> k) & 1;
+    snprintf(buf, sizeof(buf), "Watered %u!", n);
+    cdTextRight(g, &commuteBold16, buf, 230, 22, C_GREEN);
+  } else {
+    cdTextRight(g, &commuteReg12, "hold to water", 230, 20, C_GRAY);
+  }
+  g->drawFastHLine(10, 31, 220, C_GRAY);
+
+  uint8_t used = 0;
+  for (uint8_t k = 0; k < MAX_PLANTS; k++) used += plantUsed(s.commute.plants[k]);
+  if (!used) {
+    cdTextCentered(g, &commuteReg16, "Add plants in the web UI,", 120, 120, C_GRAY);
+    cdTextCentered(g, &commuteReg16, "Commute tab", 120, 142, C_GRAY);
+    return;
+  }
+  if (!now) {
+    cdTextCentered(g, &commuteReg16, "Waiting for the clock...", 120, 130, C_GRAY);
+    return;
+  }
+
+  uint8_t slot = 0;
+  for (uint8_t k = 0; k < MAX_PLANTS; k++) {
+    const PlantSettings& p = s.commute.plants[k];
+    if (!plantUsed(p)) continue;
+    int cx = 65 + (slot % 2) * 110, y = 36 + (slot / 2) * 96;
+    slot++;
+    bool splash = (watered >> k) & 1;
+    int due = splash ? p.everyDays : plantDueIn(p, now);
+    drawPlant(g, cx - 24, y, due);
+    if (splash) {                                    // drops falling on the plant
+      uint16_t b = gfxTint(kRainBlue);
+      for (int d = 0; d < 5; d++) {
+        int dx = cx - 18 + d * 9, dy = y + 2 + (d % 2) * 8;
+        g->fillCircle(dx, dy + 4, 2, b);
+        g->fillTriangle(dx - 2, dy + 3, dx + 2, dy + 3, dx, dy, b);
+      }
+    }
+    char name[24];
+    cdFit(g, &commuteBold13, p.name.c_str(), 104, name, sizeof(name));
+    cdTextCentered(g, &commuteBold13, name, cx, y + 66, C_WHITE);
+    uint16_t col = C_GRAY;
+    if (splash)        { strlcpy(buf, "Thanks!", sizeof(buf)); col = C_GREEN; }
+    else if (due > 1)  snprintf(buf, sizeof(buf), "Water in %d days", due);
+    else if (due == 1) strlcpy(buf, "Water tomorrow", sizeof(buf));
+    else if (due == 0) { strlcpy(buf, "Water today", sizeof(buf)); col = gfxTint(kRainBlue); }
+    else               { snprintf(buf, sizeof(buf), "%d day%s late", -due, due == -1 ? "" : "s"); col = cdRgb(255, 150, 40); }
+    cdTextCentered(g, &commuteReg12, buf, cx, y + 82, col);
   }
 }
 

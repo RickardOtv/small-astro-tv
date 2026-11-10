@@ -37,6 +37,7 @@ extern void appButtonDiag(JsonObject o);
 #include "features/commute/CommuteClient.h"
 #include "features/commute/CommuteMode.h"
 extern void appCommutePage(int page);
+#include "features/commute/CommutePlants.h"
 
 #endif
 extern void appApplyBrightness();   // main.cpp: re-resolve effective brightness now
@@ -213,6 +214,22 @@ static void handleCommuteGet() {
   commuteDiag(doc["data"].to<JsonObject>());
   appButtonDiag(doc["button"].to<JsonObject>());
   sendJson(doc);
+}
+
+// POST /api/commute/water {"plant":i} or {"due":true}: water one plant, or
+// every plant due by tomorrow (what holding the button does).
+static void handleCommuteWater() {
+  if (!requireAuth()) return;
+  JsonDocument doc;
+  if (deserializeJson(doc, server.arg("plain"))) { server.send(400, "text/plain", "bad json"); return; }
+  if (!clockSynced()) { server.send(503, "text/plain", "clock not set"); return; }
+  int i = doc["due"] | false ? -1 : (int)(doc["plant"] | -2);
+  if (i < -1 || i >= MAX_PLANTS) { server.send(400, "text/plain", "bad plant"); return; }
+  uint8_t mask = plantsWater(S->commute, i, time(nullptr));
+  if (mask) { saveSettings(*S); g_commuteMode.showWatered(mask); }
+  JsonDocument out;
+  out["watered"] = mask;
+  sendJson(out);
 }
 
 // POST /api/commute/page {"page":n} or {"next":true}: switch screens.
@@ -680,6 +697,7 @@ void webPortalBegin(Settings& settings) {
 #if WITH_COMMUTE
   server.on("/api/commute", HTTP_GET, handleCommuteGet);
   server.on("/api/commute/page", HTTP_POST, handleCommutePage);
+  server.on("/api/commute/water", HTTP_POST, handleCommuteWater);
 #endif
   server.on("/api/scan", HTTP_GET, handleScan);
   server.on("/api/reboot", HTTP_POST, handleReboot);

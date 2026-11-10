@@ -316,10 +316,15 @@ small.hint{display:block;color:var(--mut);margin-top:4px;font-size:12px}
     <button class="btn sec" onclick="cmPage(1)">Hours</button>
     <button class="btn sec" onclick="cmPage(2)">Week</button>
     <button class="btn sec" onclick="cmPage(3)">Trips</button>
-    <button class="btn sec" onclick="cmPage(4)">Info</button>
+    <button class="btn sec" onclick="cmPage(4)">Plants</button>
+    <button class="btn sec" onclick="cmPage(5)">Info</button>
     <button class="btn" onclick="cmPage(-1)">Next &rsaquo;</button></div>
    <small class="hint" id="cmState"></small>
    <small class="hint">Does what the touch button does: a tap shows the next screen, a long press goes back to Home.</small>
+  </div>
+  <div class="card"><h2>Plants</h2>
+   <div id="cmPlants"></div>
+   <small class="hint">Up to four plants and how often each wants water. On the Plants screen, hold the button to water every plant due by tomorrow, or use Water here for one plant. Save to keep name or interval changes.</small>
   </div>
   <div class="card"><h2>Trip (V&auml;sttrafik)</h2>
    <label>Autentiseringsnyckel</label>
@@ -491,10 +496,21 @@ function numIn(v,def,lo,hi){var n=parseInt(v); return isNaN(n)?def:Math.min(hi,M
 // sun end
 function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2200)}
 // Commute screens: switch page, show which one is on and how the last fetch went.
-var CM_PAGES=['Home','Hours','Week','Trips','Info'];
+var CM_PAGES=['Home','Hours','Week','Trips','Plants','Info'];
 function cmShow(d){var el=$('cmState');if(!el)return;var x=d.data||{};
  el.textContent='On screen: '+(CM_PAGES[d.page]||d.page)+'  · trips: '+(x.tripStatus||'-')+(x.tripsKept!=null?' ('+x.tripsKept+')':'')+'  · weather: '+(x.weatherOk?'ok':'-');
  [].forEach.call($('cmPages').children,function(b,i){b.classList.toggle('sec',i!==d.page&&i<CM_PAGES.length)})}
+// Plants: one row per slot (name, every N days, last watered, Water button).
+var CM_PLANTS=4;
+function cmPlantsShow(pl){var el=$('cmPlants');if(!el)return;var now=Date.now()/1000,h='';
+ for(var i=0;i<CM_PLANTS;i++){var p=(pl||[])[i]||{};var at=p.at||0,ago=at?Math.floor((now-at)/86400):-1;
+  h+='<div class="row" style="align-items:end"><div><label>Plant '+(i+1)+'</label><input id="cmPlName'+i+'" type="text" maxlength="40" placeholder="e.g. Monstera"></div>'+
+   '<div><label>Every (days)</label><input id="cmPlEvery'+i+'" type="number" min="1" max="60"></div>'+
+   '<div><small class="hint">'+(p.name?(ago<0?'never watered':ago===0?'watered today':'watered '+ago+' d ago'):'')+'</small> '+
+   (p.name?'<button class="btn sec" onclick="cmWater('+i+')">Water</button>':'')+'</div></div>';}
+ el.innerHTML=h;
+ for(var k=0;k<CM_PLANTS;k++){var q=(pl||[])[k]||{};sv('cmPlName'+k,q.name||'');sv('cmPlEvery'+k,q.every||7);}}
+function cmWater(i){j('/api/commute/water',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plant:i})}).then(function(d){toast(d.watered?'Watered':'Nothing watered');return loadConfig()}).catch(function(e){toast(e.message)})}
 function cmRefresh(){return j('/api/commute').then(cmShow).catch(function(){})}
 function cmPage(n){j('/api/commute/page',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(n<0?{next:true}:{page:n})}).then(cmRefresh).catch(function(e){toast(e.message)})}
 function j(url,opt){return fetch(url,opt).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Request failed');return d})})}
@@ -618,6 +634,7 @@ function loadConfig(){return j('/api/config').then(function(c){C=c;
  var cm=c.commute||{};
  sv('cmStopGid',cm.stopGid); sv('cmStopName',cm.stopName); sv('cmToGid',cm.toGid); sv('cmToName',cm.toName);
  sv('cmPollSec',cm.pollSec||60); sv('cmWalkMin',cm.walkMin||0);
+ cmPlantsShow(cm.plants);
  var ck2=$('cmKey'); if(ck2){ck2.value='';ck2.placeholder=cm.keySet?'(unchanged)':'paste your key';}
  // HA / MQTT slice
  var h=c.ha||{};
@@ -800,6 +817,7 @@ function collect(){
    toGid:gv('cmToGid').trim(), toName:gv('cmToName').trim(),
    pollSec:numIn(gv('cmPollSec'),60,30,3600), walkMin:numIn(gv('cmWalkMin'),0,0,30)};
   var k=gv('cmKey').trim(); if(k)cm.authKey=k;
+  cm.plants=[];for(var pi=0;pi<CM_PLANTS;pi++)cm.plants.push({name:gv('cmPlName'+pi).trim(),every:numIn(gv('cmPlEvery'+pi),7,1,60)});
   o.commute=cm;
  }
  // radar slice

@@ -499,6 +499,7 @@ void CommuteSettings::setDefaults() {
   toName   = COMMUTE_DEF_TO_NAME;
   pollSec  = DEFAULT_COMMUTE_POLL_SEC;
   walkMin  = COMMUTE_DEF_WALK_MIN;
+  for (auto& p : plants) { p.name = ""; p.everyDays = 7; p.wateredAt = 0; }
 }
 
 void CommuteSettings::toJson(JsonObject o, bool includeSecrets) const {
@@ -510,6 +511,13 @@ void CommuteSettings::toJson(JsonObject o, bool includeSecrets) const {
   o["toName"]   = toName;
   o["pollSec"]  = pollSec;
   o["walkMin"]  = walkMin;
+  JsonArray pa = o["plants"].to<JsonArray>();
+  for (const auto& p : plants) {
+    JsonObject x = pa.add<JsonObject>();
+    x["name"]  = p.name;
+    x["every"] = p.everyDays;
+    x["at"]    = p.wateredAt;
+  }
 }
 
 static void readField(JsonObjectConst o, const char* key, String& dst) {
@@ -532,6 +540,16 @@ void CommuteSettings::fromJson(JsonObjectConst o) {
   readField(o, "toName", toName);
   if (o["pollSec"].is<int>()) pollSec = constrain((int)o["pollSec"], 30, 3600);
   if (o["walkMin"].is<int>()) walkMin = constrain((int)o["walkMin"], 0, 30);
+  // Plants: names and intervals from the page; "at" (last watered) only from
+  // the stored file or an import, so a page save keeps the watering times.
+  JsonArrayConst pa = o["plants"];
+  for (size_t i = 0; i < pa.size() && i < MAX_PLANTS; i++) {
+    JsonObjectConst x = pa[i];
+    PlantSettings& p = plants[i];
+    readField(x, "name", p.name);
+    if (x["every"].is<int>()) p.everyDays = constrain((int)x["every"], 1, 60);
+    if (x["at"].is<uint32_t>()) p.wateredAt = x["at"].as<uint32_t>();
+  }
 }
 
 // ===========================================================================
