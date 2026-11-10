@@ -56,6 +56,7 @@ small.hint{display:block;color:var(--mut);margin-top:4px;font-size:12px}
  <button data-t="status" class="active">Status</button>
  <button data-t="wifi">WiFi</button>
  <button data-t="display">Display</button>
+ <button data-t="commute">Commute</button>
  <button data-t="ticker">Ticker</button>
  <button data-t="usage">Clawdmeter</button>
  <button data-t="radar">Radar</button>
@@ -115,6 +116,7 @@ small.hint{display:block;color:var(--mut);margin-top:4px;font-size:12px}
   <div class="card"><h2>Mode</h2>
    <label>What this device shows</label>
    <select id="mode" onchange="modeChanged()">
+    <option value="commute">Commute (time, weather, departures)</option>
     <option value="stocks">Ticker</option>
     <option value="usage">Clawdmeter</option>
     <option value="radar">Radar</option>
@@ -124,6 +126,7 @@ small.hint{display:block;color:var(--mut);margin-top:4px;font-size:12px}
    </select>
    <div id="carouselRow">
     <label>Switch mode every (s)</label><input id="carouselSec" type="number" min="5" max="3600">
+    <div class="chk"><input id="carouselCommute" type="checkbox"><label>Commute</label></div>
     <div class="chk"><input id="carouselTicker" type="checkbox"><label>Ticker</label></div>
     <div class="chk"><input id="carouselUsage" type="checkbox"><label>Clawdmeter</label></div>
     <div class="chk"><input id="carouselRadar" type="checkbox"><label>Radar</label></div>
@@ -306,6 +309,37 @@ small.hint{display:block;color:var(--mut);margin-top:4px;font-size:12px}
   </div>
  </section>
 
+ <!-- COMMUTE (feature, personal mod) -->
+ <section id="commute" class="tab">
+  <div class="card"><h2>Screen</h2>
+   <div id="cmPages" style="display:flex;flex-wrap:wrap;gap:8px"><button class="btn sec" onclick="cmPage(0)">Home</button>
+    <button class="btn sec" onclick="cmPage(1)">Hours</button>
+    <button class="btn sec" onclick="cmPage(2)">Week</button>
+    <button class="btn sec" onclick="cmPage(3)">Trips</button>
+    <button class="btn sec" onclick="cmPage(4)">Info</button>
+    <button class="btn" onclick="cmPage(-1)">Next &rsaquo;</button></div>
+   <small class="hint" id="cmState"></small>
+   <small class="hint">Does what the touch button does: a tap shows the next screen, a long press goes back to Home.</small>
+  </div>
+  <div class="card"><h2>Trip (V&auml;sttrafik)</h2>
+   <label>Autentiseringsnyckel</label>
+   <input id="cmKey" type="password" autocomplete="off" placeholder="paste your key">
+   <div class="row">
+    <div><label>From stop area id</label><input id="cmStopGid" type="text" placeholder="9021014..."></div>
+    <div><label>Name</label><input id="cmStopName" type="text" placeholder="From stop"></div>
+   </div>
+   <div class="row">
+    <div><label>To stop area id</label><input id="cmToGid" type="text" placeholder="9021014..."></div>
+    <div><label>Name</label><input id="cmToName" type="text" placeholder="To stop"></div>
+   </div>
+   <div class="row">
+    <div><label>Refresh (s)</label><input id="cmPollSec" type="number" min="30" max="3600"></div>
+    <div><label>Walk to stop (min)</label><input id="cmWalkMin" type="number" min="0" max="30"></div>
+   </div>
+   <small class="hint">The key is the <b>Autentiseringsnyckel</b> from your app at <a href="https://developer.vasttrafik.se" target="_blank" rel="noopener">developer.vasttrafik.se</a>, subscribed to <b>Planera Resa v4</b>. Like the passwords, it is never read back into this page; leave it blank to keep the stored one. The screen shows the quickest trips from the first stop to the second, using the V&auml;sttrafik journey planner, so changes, diversions and replacement buses are included. It shows minutes until you leave, the lines to take and the arrival time. Trips leaving sooner than the walk time are hidden. A green dot means a live estimate, grey means timetable only. Weather uses the device location (Display tab, Clock card) and needs no key.</small>
+  </div>
+ </section>
+
  <!-- RADAR (feature) -->
  <section id="radar" class="tab">
   <div class="card"><h2>Home location</h2>
@@ -456,6 +490,13 @@ function sunNowText(c,s){
 function numIn(v,def,lo,hi){var n=parseInt(v); return isNaN(n)?def:Math.min(hi,Math.max(lo,n))}
 // sun end
 function toast(m){var t=$('toast');t.textContent=m;t.classList.add('show');setTimeout(function(){t.classList.remove('show')},2200)}
+// Commute screens: switch page, show which one is on and how the last fetch went.
+var CM_PAGES=['Home','Hours','Week','Trips','Info'];
+function cmShow(d){var el=$('cmState');if(!el)return;var x=d.data||{};
+ el.textContent='On screen: '+(CM_PAGES[d.page]||d.page)+'  · trips: '+(x.tripStatus||'-')+(x.tripsKept!=null?' ('+x.tripsKept+')':'')+'  · weather: '+(x.weatherOk?'ok':'-');
+ [].forEach.call($('cmPages').children,function(b,i){b.classList.toggle('sec',i!==d.page&&i<CM_PAGES.length)})}
+function cmRefresh(){return j('/api/commute').then(cmShow).catch(function(){})}
+function cmPage(n){j('/api/commute/page',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(n<0?{next:true}:{page:n})}).then(cmRefresh).catch(function(e){toast(e.message)})}
 function j(url,opt){return fetch(url,opt).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Request failed');return d})})}
 
 // tabs
@@ -463,6 +504,7 @@ document.querySelectorAll('nav button').forEach(function(b){b.onclick=function()
  document.querySelectorAll('nav button').forEach(function(x){x.classList.remove('active')});
  document.querySelectorAll('.tab').forEach(function(x){x.classList.remove('active')});
  b.classList.add('active');$(b.dataset.t).classList.add('active');
+ if(b.dataset.t==='commute')cmRefresh();
 }});
 
 // field groups by their location in the nested config
@@ -501,8 +543,8 @@ var TZMAP={
 function fillTz(){var s=$('tz');if(!s)return;var keys=Object.keys(TZMAP).filter(function(k){return k!==''});
  keys.sort();s.innerHTML='<option value="">UTC</option>'+keys.map(function(k){return '<option value="'+k+'">'+k+'</option>'}).join('');}
 
-var MODEOPT={ticker:'stocks',usage:'usage',radar:'radar',ha:'ha',theme:'theme'};
-var CAROPT={ticker:'carouselTicker',usage:'carouselUsage',radar:'carouselRadar',ha:'carouselHa',theme:'carouselTheme'};
+var MODEOPT={commute:'commute',ticker:'stocks',usage:'usage',radar:'radar',ha:'ha',theme:'theme'};
+var CAROPT={commute:'carouselCommute',ticker:'carouselTicker',usage:'carouselUsage',radar:'carouselRadar',ha:'carouselHa',theme:'carouselTheme'};
 function hideFeat(name){
  var b=document.querySelector('nav button[data-t="'+name+'"]'); if(b)b.remove();
  var sec=$(name); if(sec)sec.remove();
@@ -525,7 +567,7 @@ function setGain(id,lab,v){var n=(v!=null?v:100);sv(id,n);var e=$(lab);if(e)e.te
 function resetColors(){setGain('rGain','rgVal',100);setGain('gGain','ggVal',100);setGain('bGain','bgVal',100);
  toast('Gains reset — press Save settings to apply')}
 function loadConfig(){return j('/api/config').then(function(c){C=c;
- var f=c.features||{}; ['ticker','usage','radar','ha'].forEach(function(k){if(f[k]===false)hideFeat(k)});
+ var f=c.features||{}; ['commute','ticker','usage','radar','ha'].forEach(function(k){if(k==='commute'?f[k]!==true:f[k]===false)hideFeat(k)});
  // WireGuard is only built for the chips with room for it; drop the card otherwise
  if(f.theme!==true){hideFeat('theme');var tc=$('themeCard');if(tc)tc.remove()}else{loadThemes()}
  if(f.wireguard===false){var wc=$('wgCard'); if(wc)wc.remove()}
@@ -571,6 +613,12 @@ function loadConfig(){return j('/api/config').then(function(c){C=c;
  sv('carouselSec',c.carouselSec||30);
  sc('carouselTicker',c.carouselTicker!==false); sc('carouselUsage',c.carouselUsage!==false); sc('carouselRadar',c.carouselRadar!==false);
  sc('carouselHa',c.carouselHa!==false); sc('carouselTheme',c.carouselTheme===true);
+ sc('carouselCommute',c.carouselCommute!==false);
+ // commute slice
+ var cm=c.commute||{};
+ sv('cmStopGid',cm.stopGid); sv('cmStopName',cm.stopName); sv('cmToGid',cm.toGid); sv('cmToName',cm.toName);
+ sv('cmPollSec',cm.pollSec||60); sv('cmWalkMin',cm.walkMin||0);
+ var ck2=$('cmKey'); if(ck2){ck2.value='';ck2.placeholder=cm.keySet?'(unchanged)':'paste your key';}
  // HA / MQTT slice
  var h=c.ha||{};
  sv('haBrokerHost',h.brokerHost); sv('haBrokerPort',h.brokerPort||1883);
@@ -746,6 +794,14 @@ function collect(){
   lat:parseFloat(gv('locLat'))||0,lon:parseFloat(gv('locLon'))||0,
   sunEnabled:gc('sunEnabled'),sunLow:numIn(gv('sunLow'),5,0,100),sunRise:numIn(gv('sunRise'),60,0,120),
   sunSet:numIn(gv('sunSet'),60,0,120),sunOverlap:numIn(gv('sunOverlap'),0,0,2)};}
+ // commute slice: a blank key keeps the stored one
+ if($('commute')){
+  var cm={stopGid:gv('cmStopGid').trim(), stopName:gv('cmStopName').trim(),
+   toGid:gv('cmToGid').trim(), toName:gv('cmToName').trim(),
+   pollSec:numIn(gv('cmPollSec'),60,30,3600), walkMin:numIn(gv('cmWalkMin'),0,0,30)};
+  var k=gv('cmKey').trim(); if(k)cm.authKey=k;
+  o.commute=cm;
+ }
  // radar slice
  if($('radar')){
   var r={useDevice:gc('radarUseDevice'), lat:parseFloat(gv('radarLat'))||0, lon:parseFloat(gv('radarLon'))||0,
@@ -854,7 +910,7 @@ function haNote(c){
 function showStatus(s){
  $('dot').className='dot'+(s.connected?' ok':'');
  $('hi').textContent=s.mode==='ap'?'setup mode':(s.ip||'');
- var cn=$('clockNow'); if(cn){var ne=!!(C.clock&&(C.clock.nightEnabled||C.clock.sunEnabled))||C.mode==='theme'||!!(C.wg&&C.wg.enabled);var ns=s.night?'  · night mode active':(s.nightHeld?'  · night mode waiting for NTP':'');cn.textContent=!ne?'Clock: enable night mode, the sun schedule, a theme clock, or WireGuard to start NTP':('Clock: '+(s.synced?(s.time||'synced')+(s.tz?' ('+s.tz+')':''):'waiting for NTP...')+ns);}
+ var cn=$('clockNow'); if(cn){var ne=!!(C.clock&&(C.clock.nightEnabled||C.clock.sunEnabled))||C.mode==='theme'||C.mode==='commute'||!!(C.wg&&C.wg.enabled);var ns=s.night?'  · night mode active':(s.nightHeld?'  · night mode waiting for NTP':'');cn.textContent=!ne?'Clock: enable night mode, the sun schedule, a theme clock, the commute screen, or WireGuard to start NTP':('Clock: '+(s.synced?(s.time||'synced')+(s.tz?' ('+s.tz+')':''):'waiting for NTP...')+ns);}
  var sn=$('sunNow'),st=sunNowText(C.clock,s); if(sn&&st!==null)sn.textContent=st;
  var fw=$('fwVer'); if(fw)fw.textContent=s.fw+' '+s.version;
  // Surface the result of a boot-time GitHub update (ESP8266) once on first load,

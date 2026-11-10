@@ -12,13 +12,15 @@
 // ---------------------------------------------------------------------------
 // Firmware identity
 // ---------------------------------------------------------------------------
-#define FW_NAME     "smalltv-mod"
+#define FW_NAME     "small-astro-tv"
 #define FW_VERSION  "3.5.1"
 
 // Project / update references (shown in the web UI; used by the GitHub self-update)
-#define REPO_URL      "https://github.com/giovi321/smalltv-mod"
-#define REPO_OWNER    "giovi321"
-#define REPO_NAME     "smalltv-mod"
+// small-astro-tv, a fork of giovi321/smalltv-mod: points at this fork, so the
+// GitHub self-update can never replace this build with an upstream image.
+#define REPO_URL      "https://github.com/RickardOtv/small-astro-tv"
+#define REPO_OWNER    "RickardOtv"
+#define REPO_NAME     "small-astro-tv"
 // Release asset the GitHub self-updater pulls, and the short variant name shown
 // in the web UI. One app image per target, plus a second one for the two boards
 // that ship a stripped or extended build of the same hardware: the ESP8266
@@ -34,7 +36,7 @@
   #define UPDATE_ASSET "smalltv-mod-firmware-c2.bin"
   #define FW_VARIANT   "c2"
 #elif defined(SMALLTV_ESP32_PRO)
-  #define UPDATE_ASSET "smalltv-mod-firmware-esp32-pro.bin"
+  #define UPDATE_ASSET "small-astro-tv-firmware-esp32-pro.bin"
   #define FW_VARIANT   "esp32-pro"
 #elif defined(SMALLTV_ESP32_WG)
   #define UPDATE_ASSET "smalltv-mod-firmware-esp32-wg.bin"
@@ -142,7 +144,8 @@
 #define MODE_NOTIFY    4             // transient overlay: armed over HTTP, never persisted
 #define MODE_THEME     6             // declarative installed clock faces
 #define MODE_HA        5             // Home Assistant screens pushed over MQTT
-#define DEFAULT_MODE MODE_STOCKS
+#define MODE_COMMUTE   7             // clock + weather + next public-transport departures
+#define DEFAULT_MODE (WITH_COMMUTE ? MODE_COMMUTE : MODE_STOCKS)   // personal mod: commute screen first
 #define DEFAULT_CAROUSEL_SEC 30      // per-mode dwell in carousel
 
 // ---------------------------------------------------------------------------
@@ -170,7 +173,7 @@
 #define DEFAULT_BTN_SENS   85
 #endif
 #define DEFAULT_BTN_SHORT  BTN_ACT_NEXT
-#define DEFAULT_BTN_LONG   BTN_ACT_NETINFO
+#define DEFAULT_BTN_LONG   BTN_ACT_HOME      // personal mod: long press = back to the overview
 
 // Full-screen attention overlay (POST /api/notify), in seconds.
 #define NOTIFY_TTL_DEFAULT_SEC  20
@@ -267,6 +270,15 @@
 #endif
 #ifndef WITH_HA
 #define WITH_HA 1
+#endif
+// Commute screen (features/commute): ESP32 targets only, the ESP8266 has no
+// heap to spare for the departures fetch.
+#ifndef WITH_COMMUTE
+#if defined(SMALLTV_FAMILY_ESP8266)
+#define WITH_COMMUTE 0
+#else
+#define WITH_COMMUTE 1
+#endif
 #endif
 
 // Claude usage mode: once data stops arriving for this long (PC asleep, daemon
@@ -411,8 +423,8 @@
 // --- Clock / night mode (device-wide) ---
 #define NTP_SERVER1             "pool.ntp.org"
 #define NTP_SERVER2             "time.nist.gov"
-#define DEFAULT_TZ_NAME         ""        // IANA display name; empty = UTC
-#define DEFAULT_TZ_POSIX        "UTC0"    // POSIX TZ rule the device feeds SNTP
+#define DEFAULT_TZ_NAME         "Europe/Stockholm"   // personal mod (upstream: "" = UTC)
+#define DEFAULT_TZ_POSIX        "CET-1CEST,M3.5.0,M10.5.0/3"   // POSIX TZ rule the device feeds SNTP
 #define DEFAULT_NIGHT_ENABLED   false
 #define DEFAULT_NIGHT_START_MIN 1320      // 22:00
 #define DEFAULT_NIGHT_END_MIN   420       // 07:00
@@ -432,3 +444,38 @@
 #ifndef WITH_THEME
 #define WITH_THEME 1
 #endif
+
+// ---------------------------------------------------------------------------
+// Commute screen (MODE_COMMUTE)
+//   Weather: Open-Meteo, no key, device location (Display tab).
+//   Trips: Västtrafik Planera Resa v4 journeys (OAuth client credentials).
+// ---------------------------------------------------------------------------
+#define OPENMETEO_HOST        "api.open-meteo.com"
+#define VT_HOST               "ext-api.vasttrafik.se"
+#define COMMUTE_WEATHER_SEC   900     // weather refresh (15 min)
+#define COMMUTE_NIGHT_POLL_SEC 900    // trip refresh while night mode is on
+#define DEFAULT_COMMUTE_POLL_SEC 60
+#define COMMUTE_TRIP_LIMIT    4       // journeys asked for per poll (~42 KB of JSON for 4)
+#define MAX_TRIPS             6
+#define MAX_TRIP_LEGS         3       // rides drawn per trip
+#define COMMUTE_HOURS         12      // hourly forecast kept (from the current hour)
+#define COMMUTE_DAYS          7       // daily forecast kept (today first)
+#define COMMUTE_ANIM_MS       180     // astronaut frame time on the Today screen
+#define MAX_COMMUTE_KEY_LEN   200     // base64(clientId:secret)
+// Build-time defaults from commute.env (tools/commute_env.py); blank without it.
+#ifndef COMMUTE_DEF_FROM_ID
+#define COMMUTE_DEF_FROM_ID ""
+#endif
+#ifndef COMMUTE_DEF_FROM_NAME
+#define COMMUTE_DEF_FROM_NAME ""
+#endif
+#ifndef COMMUTE_DEF_TO_ID
+#define COMMUTE_DEF_TO_ID ""
+#endif
+#ifndef COMMUTE_DEF_TO_NAME
+#define COMMUTE_DEF_TO_NAME ""
+#endif
+#ifndef COMMUTE_DEF_WALK_MIN
+#define COMMUTE_DEF_WALK_MIN 0
+#endif
+#define MAX_COMMUTE_FIELD_LEN 48

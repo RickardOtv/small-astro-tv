@@ -42,3 +42,6 @@ dependencies.lock
 
 # manual quotes-branch staging dir (see .github/scripts/fetch-quotes.mjs)
 /out/
+
+# Personal commute defaults (tools/commute_env.py); commute.env.example is the template
+commute.env

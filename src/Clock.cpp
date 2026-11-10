@@ -52,7 +52,10 @@ void clockReapply(const Settings& s) {
   // with a wrong clock (and that build is an ESP32, where the heap cost is moot).
   const bool themeOnScreen = WITH_THEME &&
       (s.mode == MODE_THEME || (s.mode == MODE_CAROUSEL && s.carouselTheme));
-  if (!s.clock.nightEnabled && !s.clock.sunEnabled && !wgNeedsClock(s) && !themeOnScreen) return;
+  // The commute screens show the time and count down to departures.
+  const bool commuteOnScreen = WITH_COMMUTE && s.mode == MODE_COMMUTE;
+  if (!s.clock.nightEnabled && !s.clock.sunEnabled && !wgNeedsClock(s) && !themeOnScreen &&
+      !commuteOnScreen) return;
   if (!s_ntpStarted || s.clock.tzPosix != s_armedTz) clockBegin(s);
 }
 

@@ -32,6 +32,13 @@
 extern void appInvalidate();
 extern void appRelease();
 extern const char* appResetReason();   // last reset reason (diagnostics)
+extern void appButtonDiag(JsonObject o);
+#if WITH_COMMUTE
+#include "features/commute/CommuteClient.h"
+#include "features/commute/CommuteMode.h"
+extern void appCommutePage(int page);
+
+#endif
 extern void appApplyBrightness();   // main.cpp: re-resolve effective brightness now
 extern int  appBacklightSteps();    // main.cpp: backlight level now, 0..255
 
@@ -132,6 +139,7 @@ static void handleGetConfig() {
   feat["ticker"] = (bool)WITH_TICKER;
   feat["usage"]  = (bool)WITH_USAGE;
   feat["radar"]  = (bool)WITH_RADAR;
+  feat["commute"] = (bool)WITH_COMMUTE;
   feat["ha"]     = (bool)WITH_HA;
   feat["theme"]  = (bool)WITH_THEME;
   // WireGuard is a per-chip decision rather than a per-feature one: it is
@@ -195,6 +203,28 @@ static smalltv::StatusTicker statusTicker(size_t i) {
 // last value, and uptime and heap change meanwhile, so it goes out chunked.
 // 3.2.1 built a document and a String of it; six requests at once then left
 // the ESP8266 with a 648-byte largest block, and a diag build crashed.
+#if WITH_COMMUTE
+// GET /api/commute: the commute screens' fetch diagnostics, the current page
+// and the touch button's readings. Nothing secret in it.
+static void handleCommuteGet() {
+  if (!requireAuth()) return;
+  JsonDocument doc;
+  doc["page"] = g_commuteMode.page();
+  commuteDiag(doc["data"].to<JsonObject>());
+  appButtonDiag(doc["button"].to<JsonObject>());
+  sendJson(doc);
+}
+
+// POST /api/commute/page {"page":n} or {"next":true}: switch screens.
+static void handleCommutePage() {
+  if (!requireAuth()) return;
+  JsonDocument doc;
+  if (deserializeJson(doc, server.arg("plain"))) { server.send(400, "text/plain", "bad json"); return; }
+  appCommutePage(doc["next"] | false ? -1 : (int)(doc["page"] | 0));
+  server.send(200, "application/json", "{\"ok\":true}");
+}
+#endif
+
 static void handleStatus() {
   if (!requireAuth()) return;
   const String ssid = netSSID(), ip = netIP();
@@ -594,17 +624,17 @@ static void handleUpdateDone() {
 // handleUpdateDone, so the password has to be checked here too: guarding only
 // the final handler would let an unauthenticated POST write a whole image to
 // flash and merely lose the 200 at the end.
+// The guard and the password are checked once, at the start of each upload;
+// a refused upload is then skipped to its end without touching Update.
 static void handleUpdateUpload() {
+  static bool allowed = false;
   HTTPUpload& up = server.upload();
-  if (!guardAllowed()) {
-    if (up.status != UPLOAD_FILE_START) Update.end();
-    return;
+  if (up.status == UPLOAD_FILE_START) {
+    allowed = guardAllowed() &&
+              (!S->auth.pass.length() ||
+               server.authenticate(S->auth.user.c_str(), S->auth.pass.c_str()));
   }
-  if (S->auth.pass.length() &&
-      !server.authenticate(S->auth.user.c_str(), S->auth.pass.c_str())) {
-    if (up.status != UPLOAD_FILE_START) Update.end();
-    return;
-  }
+  if (!allowed) return;
   if (up.status == UPLOAD_FILE_START) {
 #if defined(SMALLTV_FAMILY_ESP8266)
     WiFiUDP::stopAll();   // free UDP sockets so the OTA has max contiguous flash/heap
@@ -647,6 +677,10 @@ void webPortalBegin(Settings& settings) {
   server.on("/api/config", HTTP_GET, handleGetConfig);
   server.on("/api/config", HTTP_POST, handlePostConfig);
   server.on("/api/status", HTTP_GET, handleStatus);
+#if WITH_COMMUTE
+  server.on("/api/commute", HTTP_GET, handleCommuteGet);
+  server.on("/api/commute/page", HTTP_POST, handleCommutePage);
+#endif
   server.on("/api/scan", HTTP_GET, handleScan);
   server.on("/api/reboot", HTTP_POST, handleReboot);
   server.on("/api/factory", HTTP_POST, handleFactory);

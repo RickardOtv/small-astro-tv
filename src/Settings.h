@@ -189,6 +189,25 @@ struct RadarSettings {
   void fromJson(JsonObjectConst o);
 };
 
+// ---- Commute screen slice (clock + weather + departures) -------------------
+// Weather follows the device location (clock.lat/lon). Trips come from the
+// Västtrafik Planera Resa v4 journey planner; authKey (the portal's "Autentiseringsnyckel",
+// base64 of clientId:secret) is a secret like the passwords above: config file
+// and settings export only, never the web API.
+struct CommuteSettings {
+  String   authKey;       // Västtrafik Autentiseringsnyckel
+  String   stopGid;       // origin stop area id, 16 digits
+  String   stopName;      // its label on screen
+  String   toGid;         // destination stop area id
+  String   toName;        // its label on screen
+  uint16_t pollSec;       // trip refresh period
+  uint8_t  walkMin;       // hide trips leaving sooner than this (minutes)
+
+  void setDefaults();
+  void toJson(JsonObject o, bool includeSecrets) const;
+  void fromJson(JsonObjectConst o);
+};
+
 // ---- Physical button slice (device-wide) -----------------------------------
 // Only acted on where BTN_PIN exists, but the fields persist everywhere so a
 // config export/import round-trips across boards. sensitivity is the touch press
@@ -220,7 +239,7 @@ struct Settings {
 
   // --- Carousel (mode == MODE_CAROUSEL): dwell + which features rotate ---
   uint16_t carouselSec;
-  bool carouselTicker, carouselUsage, carouselRadar, carouselHa, carouselTheme;
+  bool carouselTicker, carouselUsage, carouselRadar, carouselHa, carouselTheme, carouselCommute;
 
   // --- Shared HTTP / display ---
   uint16_t httpTimeout; // ms
@@ -233,6 +252,7 @@ struct Settings {
   TickerSettings  ticker;
   UsageSettings   usage;
   RadarSettings   radar;
+  CommuteSettings commute;
   HaSettings      ha;        // MQTT broker for HA screens
   ClockSettings   clock;
   DisplaySettings display;   // panel colour correction

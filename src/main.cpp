@@ -36,6 +36,9 @@
 #if WITH_RADAR
 #include "RadarMode.h"
 #endif
+#if WITH_COMMUTE
+#include "CommuteMode.h"
+#endif
 #if WITH_HA
 #include "HaBoot.h"
 #include "HaMode.h"
@@ -46,6 +49,9 @@
 // The compiled-in features, in display order. main.cpp holds no per-feature
 // state of its own — each mode owns its fetch/render/dirty tracking.
 static DisplayMode* kModes[] = {
+#if WITH_COMMUTE
+  &g_commuteMode,
+#endif
 #if WITH_TICKER
   &g_tickerMode,
 #endif
@@ -76,6 +82,7 @@ static bool carouselHas(const Settings& s, const DisplayMode* m) {
     case MODE_STOCKS: return s.carouselTicker;
     case MODE_USAGE:  return s.carouselUsage;
     case MODE_RADAR:  return s.carouselRadar;
+    case MODE_COMMUTE: return s.carouselCommute;
 #if WITH_HA
     case MODE_HA:     return s.carouselHa;
 #endif
@@ -201,6 +208,10 @@ static void buttonAckNotify() {
 }
 
 static void buttonGoHome() {
+#if WITH_COMMUTE
+  // The commute screens page through themselves: back to the overview.
+  if (g_settings.mode == MODE_COMMUTE) { g_commuteMode.home(); return; }
+#endif
   g_carPaused = false;                 // resume normal rotation
   if (g_settings.mode == MODE_CAROUSEL && kModeCount > 0) {
     g_carIdx = 0;
@@ -214,6 +225,9 @@ static void buttonGoHome() {
 }
 
 static void buttonNext() {
+#if WITH_COMMUTE
+  if (g_settings.mode == MODE_COMMUTE) { g_commuteMode.nextPage(); return; }
+#endif
 #if WITH_HA
   // Home Assistant mode rotates its own screens: step through them directly.
   if (g_settings.mode == MODE_HA) { g_haMode.nextPage(); return; }
@@ -236,6 +250,14 @@ static void buttonAction(uint8_t act) {
   }
 }
 
+// Touch diagnostics for GET /api/commute: what the sensor reads, the
+// thresholds, how many presses were seen, and the longest gap between two
+// samples (a long gap means the loop was busy and a short tap could be missed).
+static struct {
+  uint16_t raw, baseline, thrDown, thrUp;
+  uint32_t presses, maxGapMs, lastMs;
+} g_btnDiag = {};
+
 static void buttonService() {
   static bool     inited   = false;
   static uint16_t thrDown  = 0;       // press  when median < thrDown
@@ -250,13 +272,20 @@ static void buttonService() {
     uint32_t sum = 0;
     for (int i = 0; i < 16; i++) { sum += touchRead(BTN_PIN); delay(2); }
     uint16_t baseline = sum / 16;
+    g_btnDiag.baseline = baseline;
     uint8_t s = g_settings.button.sensitivity;
     thrDown = (uint16_t)((uint32_t)baseline * s / 100);
     uint8_t up = s + 5; if (up > 99) up = 99;            // ~5 % hysteresis band
     thrUp = (uint16_t)((uint32_t)baseline * up / 100);
     sensSeen = s;
     inited = true;
+    g_btnDiag.thrDown = thrDown;
+    g_btnDiag.thrUp = thrUp;
   }
+  uint32_t nowMs = millis();
+  if (g_btnDiag.lastMs && nowMs - g_btnDiag.lastMs > g_btnDiag.maxGapMs)
+    g_btnDiag.maxGapMs = nowMs - g_btnDiag.lastMs;
+  g_btnDiag.lastMs = nowMs;
 
   // ESP32 touchRead() emits isolated low-going glitch samples; a median of three
   // reads rejects any single spike, so a lone glitch can no longer be seen as a
@@ -266,6 +295,7 @@ static void buttonService() {
   uint16_t c = touchRead(BTN_PIN);
   uint16_t m = a > b ? (b > c ? b : (a > c ? c : a))
                      : (a > c ? a : (b > c ? c : b));
+  g_btnDiag.raw = m;
 
   bool wantDown = stable ? (m < thrUp) : (m < thrDown);
   if (wantDown == stable) { run = 0; return; }
@@ -275,10 +305,33 @@ static void buttonService() {
   if (++run < BTN_CONFIRM) return;
   run = 0;
   stable = wantDown;
-  if (stable) { downAt = millis(); return; }   // press start: decide on release
+  if (stable) { downAt = millis(); g_btnDiag.presses++; return; }   // press start: decide on release
   uint32_t held = millis() - downAt;
   buttonAction(held >= BTN_LONG_MS ? g_settings.button.longAction
                                    : g_settings.button.shortAction);
+}
+#endif
+
+#ifdef BTN_PIN
+// Exposed to the web portal (GET /api/commute), and the max gap restarts.
+void appButtonDiag(JsonObject o) {
+  o["raw"] = g_btnDiag.raw;
+  o["baseline"] = g_btnDiag.baseline;
+  o["thrDown"] = g_btnDiag.thrDown;
+  o["thrUp"] = g_btnDiag.thrUp;
+  o["presses"] = g_btnDiag.presses;
+  o["maxGapMs"] = g_btnDiag.maxGapMs;
+  g_btnDiag.maxGapMs = 0;
+}
+#else
+void appButtonDiag(JsonObject o) { o["present"] = false; }
+#endif
+
+#if WITH_COMMUTE
+// POST /api/commute/page: the button's job, from the web UI. page < 0 = next.
+void appCommutePage(int page) {
+  if (page < 0) g_commuteMode.nextPage();
+  else          g_commuteMode.setPage((uint8_t)page);
 }
 #endif
 
@@ -319,7 +372,7 @@ void setup() {
     g_safeMode = true;                   // crashed last boot -> stay out of the crash path
     strlcpy(g_epcStr,  pr.epc,  sizeof(g_epcStr));
     strlcpy(g_addrStr, pr.addr, sizeof(g_addrStr));
-    char rich[80];
+    char rich[128];
     snprintf(rich, sizeof(rich), "%s epc %s addr %s", pr.reason.c_str(),
              g_epcStr[0] ? g_epcStr : "-", g_addrStr[0] ? g_addrStr : "-");
     g_resetReason = rich;

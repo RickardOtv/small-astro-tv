@@ -38,11 +38,27 @@ static inline bool platformScanIsOpen(int i) { return WiFi.encryptionType(i) == 
 static inline String platformUpdateError() { return String(Update.errorString()); }
 static inline uint32_t platformChipId() { return (uint32_t)ESP.getEfuseMac(); }
 
-// Reset / crash info. The ESP32 Arduino API exposes no exception PC (on the C2
-// or the classic ESP32), so epc/addr stay empty; panics/WDTs still flag crashes.
+// Reset / crash info. The ESP32 Arduino API exposes no exception PC; the Pro
+// build records it itself (PanicRecord.cpp). Elsewhere epc/addr stay empty;
+// panics/WDTs still flag crashes.
+#if defined(SMALLTV_ESP32_PRO)
+bool platformPanicTake(char* out, size_t n);
+#endif
 struct PlatformReset { String reason; bool wasCrash; char epc[16]; char addr[16]; };
 static inline PlatformReset platformResetInfo() {
   PlatformReset r; r.wasCrash = false; r.epc[0] = 0; r.addr[0] = 0;
+#if defined(SMALLTV_ESP32_PRO)
+  char trace[48];
+  bool panicked = platformPanicTake(trace, sizeof(trace));   // read on every boot: clears it
+  if (panicked && esp_reset_reason() == ESP_RST_PANIC) {
+    // epc = the faulting PC, addr = its caller; the reason keeps the whole trace.
+    strlcpy(r.epc, trace, 11);
+    if (strlen(trace) > 11) strlcpy(r.addr, trace + 11, 11);
+    r.reason = String("Exception/panic, trace ") + trace;
+    r.wasCrash = true;
+    return r;
+  }
+#endif
   switch (esp_reset_reason()) {
     case ESP_RST_POWERON:   r.reason = "Power on"; break;
     case ESP_RST_EXT:       r.reason = "External reset"; break;

@@ -1,8 +1,122 @@
+<h1 align="center">small-astro-tv</h1>
+
+<p align="center">A commute clock for the GeekMagic SmallTV Pro: time, weather and the next
+Västtrafik trip, with a pixel astronaut.</p>
+
+> A fork of [giovi321/smalltv-mod](https://github.com/giovi321/smalltv-mod) (WTFPL), which does
+> the hard parts: the board support, display driver, web UI and WiFi updates.
+> Not affiliated with GeekMagic, Västtrafik or Anthropic.
+
+
+Commute screens for the GeekMagic SmallTV Pro: the time, the weather
+(Open-Meteo) and the quickest Västtrafik trip between two stops, with a pixel
+astronaut who dresses for the weather. The other modes are compiled out of the
+Pro build. Code: `src/features/commute/`.
+
 <p align="center">
-  <img src="docs/src/assets/logo.svg" alt="smalltv-mod" width="96" />
+  <img src="docs/small-astro-tv/overview.png" alt="Home, Home in the rain, Hours, Week and Trips screens" width="100%" />
 </p>
 
-<h1 align="center">smalltv-mod</h1>
+<p align="center">
+  <img src="docs/small-astro-tv/home.png" alt="Home: time, weather, next trip and the astronaut" width="30%" />
+  <img src="docs/small-astro-tv/rain.png" alt="Home in the rain: the astronaut holds an umbrella and wears a scarf" width="30%" />
+  <img src="docs/small-astro-tv/sun.png" alt="Home on a sunny day" width="30%" />
+</p>
+
+<p align="center"><sub>Rendered from the firmware's own drawing code; stops and trips are examples.</sub></p>
+
+Pages (tap the button for the next one, hold it to go back to Home):
+
+| Page  | Shows |
+|-------|-------|
+| Home  | date, big time, weather now, the next trip (lines, delay, minutes, arrival), the astronaut |
+| Hours | today's high and low; the next 8 hours in a row (icon, chance of rain from 20%, temperature); when rain starts, feels-like, wind, sunrise and sunset |
+| Week  | 7-day forecast |
+| Trips | the next three trips in detail |
+| Info  | WiFi, IP, firmware, uptime, memory, last fetches |
+
+The astronaut follows the weather (umbrella, snow, sun, scarf when cold) and
+waves "GO!" when the next trip leaves within 2 minutes of the walk time.
+
+### Setup
+
+1. You need a Västtrafik developer account with an app subscribed to
+   **Planera Resa v4** (developer.vasttrafik.se). Its *Autentiseringsnyckel*
+   goes in the web UI, Commute tab, never in the code.
+2. Optional: copy `commute.env.example` to `commute.env` (gitignored) and fill
+   in your stops, to bake them in as defaults. Otherwise set them in the web UI.
+3. Build and install: see [Updating over WiFi](#updating-over-wifi), or the
+   upstream [Flashing](#flashing) steps for a first install.
+
+### Watching the device
+
+The device has no log you can read over WiFi; it answers a few JSON pages
+instead. Each is a snapshot of the moment you ask. With a web password set,
+add `--digest -u admin:<password>` to each curl call.
+
+| Call | What it tells you |
+|------|-------------------|
+| `GET /api/commute` | the commute screens: current `page`; `data` = last trip fetch (`tripStatus`, `tripHttp`, `tripMs`, trips received and kept), weather age, largest free memory block (`maxBlock`); `button` = touch sensor reading (`raw`, `baseline`, press threshold `thrDown`), presses since boot, longest gap between button checks (`maxGapMs`, reset on each read) |
+| `POST /api/commute/page` | switch screens: `{"page":n}` or `{"next":true}`; needs `Content-Type: application/json` |
+| `GET /api/status` | uptime, free heap, WiFi signal, clock sync, and `reset`: why it last restarted |
+
+Example: `curl --digest -u admin:$P http://<ip>/api/commute`.
+
+The web UI shows the same: Commute tab, Screen card (page buttons and last
+fetch).
+
+**Crashes.** After a crash the device starts in safe mode and shows a CRASH
+screen until new firmware is uploaded. The Pro build records where it crashed
+(`src/PanicRecord.cpp`): `reset` in `/api/status` then reads
+`Exception/panic, trace <pc> <callers>`. Decode the addresses with:
+
+```bash
+~/.platformio/packages/toolchain-xtensa-esp-elf/bin/xtensa-esp32-elf-addr2line \
+  -pfiaC -e .pio/build/smalltv_esp32_8mb/firmware.elf <addresses>
+```
+
+**Full logs** need the USB cable: `pio device monitor -e smalltv_esp32_8mb`
+(115200 baud). The firmware prints little, but a crash prints a full backtrace.
+
+### Updating over WiFi
+
+```bash
+pio run -e smalltv_esp32_8mb
+tools/ota_upload.py <ip> admin <password-file> .pio/build/smalltv_esp32_8mb/firmware.bin
+```
+
+Use this rather than `curl --digest -F update=@...`: curl first sends the image
+without the password, and that refused upload crashes the device. Without a
+password, `curl -F update=@firmware.bin http://<ip>/update` works. The web UI
+upload (System tab) should be fine too, since the browser sends the password
+up front once logged in, but this is untested.
+
+### Could go upstream
+
+Fixes here that would help giovi321/smalltv-mod too, not sent yet:
+
+- Buffered TLS reads (`ChunkReader` in `CommuteClient.cpp`): reading a large
+  HTTPS reply byte by byte starved the touch button.
+- The OTA upload checks the password once per upload (`WebPortal.cpp`); and
+  `curl --digest` uploads still crash the device on their first,
+  unauthenticated pass (root cause not found).
+- Crash trace on the ESP32 (`src/PanicRecord.cpp`).
+- Flicker-free full-screen redraws in RAM strips (`CommuteStrip.h`).
+
+### Credits
+
+- [smalltv-mod](https://github.com/giovi321/smalltv-mod) by giovi321, WTFPL.
+- Fonts rendered from [Inter](https://rsms.me/inter/) by Rasmus Andersson,
+  [SIL Open Font License 1.1](https://openfontlicense.org).
+- Weather: [Open-Meteo](https://open-meteo.com). Trips: Västtrafik Planera Resa v4.
+- The astronaut is original pixel art.
+
+---
+
+# Upstream: smalltv-mod
+
+The rest of this README is the upstream project's. Its stock ticker, Claude usage
+meter, radar and other boards still build from this code.
 
 <p align="center">
   <a href="https://github.com/giovi321/smalltv-mod/actions/workflows/build.yml"><img src="https://github.com/giovi321/smalltv-mod/actions/workflows/build.yml/badge.svg?branch=main&amp;event=push" alt="Build"></a>

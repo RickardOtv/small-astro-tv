@@ -171,7 +171,7 @@ void ClockSettings::setDefaults() {
   nightStartMin = DEFAULT_NIGHT_START_MIN;
   nightEndMin   = DEFAULT_NIGHT_END_MIN;
   nightLevel    = DEFAULT_NIGHT_LEVEL;
-  lat = lon     = 0;
+  lat = 57.7089f; lon = 11.9746f;   // personal mod: Gothenburg (upstream: 0,0 = unset)
   sunEnabled    = false;
   sunLow        = 5;
   sunRise = sunSet = 60;
@@ -487,6 +487,54 @@ void RadarSettings::fromJson(JsonObjectConst o) {
 }
 
 // ===========================================================================
+// Commute slice
+// ===========================================================================
+void CommuteSettings::setDefaults() {
+  // Stops come from commute.env at build time (tools/commute_env.py), blank
+  // without it; the key is only ever set in the web UI.
+  authKey  = "";
+  stopGid  = COMMUTE_DEF_FROM_ID;
+  stopName = COMMUTE_DEF_FROM_NAME;
+  toGid    = COMMUTE_DEF_TO_ID;
+  toName   = COMMUTE_DEF_TO_NAME;
+  pollSec  = DEFAULT_COMMUTE_POLL_SEC;
+  walkMin  = COMMUTE_DEF_WALK_MIN;
+}
+
+void CommuteSettings::toJson(JsonObject o, bool includeSecrets) const {
+  o["keySet"]   = authKey.length() > 0;
+  if (includeSecrets) o["authKey"] = authKey;
+  o["stopGid"]  = stopGid;
+  o["stopName"] = stopName;
+  o["toGid"]    = toGid;
+  o["toName"]   = toName;
+  o["pollSec"]  = pollSec;
+  o["walkMin"]  = walkMin;
+}
+
+static void readField(JsonObjectConst o, const char* key, String& dst) {
+  if (!o[key].is<const char*>()) return;
+  dst = o[key].as<String>();
+  dst.trim();
+  if (dst.length() >= MAX_COMMUTE_FIELD_LEN) dst.remove(MAX_COMMUTE_FIELD_LEN - 1);
+}
+
+void CommuteSettings::fromJson(JsonObjectConst o) {
+  // Blank keeps the stored key, as with every other secret in this file.
+  if (o["authKey"].is<const char*>()) {
+    String k = o["authKey"].as<String>();
+    k.trim();
+    if (k.length() && k.length() < MAX_COMMUTE_KEY_LEN) authKey = k;
+  }
+  readField(o, "stopGid", stopGid);
+  readField(o, "stopName", stopName);
+  readField(o, "toGid", toGid);
+  readField(o, "toName", toName);
+  if (o["pollSec"].is<int>()) pollSec = constrain((int)o["pollSec"], 30, 3600);
+  if (o["walkMin"].is<int>()) walkMin = constrain((int)o["walkMin"], 0, 30);
+}
+
+// ===========================================================================
 // Top-level settings
 // ===========================================================================
 void Settings::setDefaults() {
@@ -505,6 +553,7 @@ void Settings::setDefaults() {
   themeId = "";
   carouselSec = DEFAULT_CAROUSEL_SEC;
   carouselTicker = carouselUsage = carouselRadar = carouselHa = true;
+  carouselCommute = true;
   carouselTheme = false;   // opt in: needs an installed theme, else the slot shows an error
   httpTimeout = DEFAULT_HTTP_TIMEOUT;
 
@@ -516,6 +565,7 @@ void Settings::setDefaults() {
   ticker.setDefaults();
   usage.setDefaults();
   radar.setDefaults();
+  commute.setDefaults();
   ha.setDefaults();
   clock.setDefaults();
   display.setDefaults();
@@ -594,6 +644,7 @@ void settingsToJson(const Settings& s, JsonObject root, bool includeSecrets) {
   root["themeId"] = s.themeId;
   root["mode"]              = (s.mode == MODE_THEME)    ? "theme"
                             : (s.mode == MODE_RADAR)    ? "radar"
+                            : (s.mode == MODE_COMMUTE)  ? "commute"
                             : (s.mode == MODE_USAGE)    ? "usage"
                             : (s.mode == MODE_HA)       ? "ha"
                             : (s.mode == MODE_CAROUSEL) ? "carousel" : "stocks";
@@ -603,6 +654,7 @@ void settingsToJson(const Settings& s, JsonObject root, bool includeSecrets) {
   root["carouselRadar"]     = s.carouselRadar;
   root["carouselHa"]        = s.carouselHa;
   root["carouselTheme"]     = s.carouselTheme;
+  root["carouselCommute"]   = s.carouselCommute;
   root["httpTimeout"]       = s.httpTimeout;
   root["brightness"]        = s.brightness;
   root["autoBrightness"]    = s.autoBrightness;
@@ -613,6 +665,7 @@ void settingsToJson(const Settings& s, JsonObject root, bool includeSecrets) {
   s.ticker.toJson(root["ticker"].to<JsonObject>());
   s.usage.toJson(root["usage"].to<JsonObject>());
   s.radar.toJson(root["radar"].to<JsonObject>());
+  s.commute.toJson(root["commute"].to<JsonObject>(), includeSecrets);
   s.ha.toJson(root["ha"].to<JsonObject>(), includeSecrets);
   s.clock.toJson(root["clock"].to<JsonObject>());
   s.display.toJson(root["display"].to<JsonObject>());
@@ -669,6 +722,7 @@ void settingsApplyJson(Settings& s, JsonObjectConst root) {
     String m = root["mode"].as<String>();
     s.mode = m.equalsIgnoreCase("theme")    ? MODE_THEME
            : m.equalsIgnoreCase("radar")    ? MODE_RADAR
+           : m.equalsIgnoreCase("commute")  ? MODE_COMMUTE
            : m.equalsIgnoreCase("usage")    ? MODE_USAGE
            : m.equalsIgnoreCase("ha")       ? MODE_HA
            : m.equalsIgnoreCase("carousel") ? MODE_CAROUSEL
@@ -690,6 +744,7 @@ void settingsApplyJson(Settings& s, JsonObjectConst root) {
   if (root["carouselRadar"].is<bool>())   s.carouselRadar = root["carouselRadar"];
   if (root["carouselHa"].is<bool>())      s.carouselHa = root["carouselHa"];
   if (root["carouselTheme"].is<bool>())   s.carouselTheme = root["carouselTheme"];
+  if (root["carouselCommute"].is<bool>()) s.carouselCommute = root["carouselCommute"];
 
   if (root["httpTimeout"].is<int>())        s.httpTimeout = constrain((int)root["httpTimeout"], 1000, 20000);
   if (root["brightness"].is<int>())         s.brightness = constrain((int)root["brightness"], 0, 100);
@@ -707,6 +762,7 @@ void settingsApplyJson(Settings& s, JsonObjectConst root) {
   // Radar has no legacy flat layout; only apply when its nested object is present.
   if (root["radar"].is<JsonObjectConst>()) s.radar.fromJson(root["radar"].as<JsonObjectConst>());
   // HA has no legacy flat layout either; only apply when its object is present.
+  if (root["commute"].is<JsonObjectConst>()) s.commute.fromJson(root["commute"].as<JsonObjectConst>());
   if (root["ha"].is<JsonObjectConst>()) s.ha.fromJson(root["ha"].as<JsonObjectConst>());
   if (root["clock"].is<JsonObjectConst>()) s.clock.fromJson(root["clock"].as<JsonObjectConst>());
   if (root["display"].is<JsonObjectConst>()) s.display.fromJson(root["display"].as<JsonObjectConst>());
