@@ -79,9 +79,9 @@ void CommuteMode::setPage(uint8_t page) {
 bool CommuteMode::longPress(Settings& s) {
   if (page_ != PAGE_PLANTS) return false;
   uint8_t mask = plantsWater(s.commute, -1, clockSynced() ? time(nullptr) : 0);
-  if (mask) saveSettings(s);
-  showWatered(mask ? mask : kPlantsNoneDue);
-  needRender_ = true;
+  if (!mask) return false;   // nothing watered: the hold goes Home
+  saveSettings(s);
+  showWatered(mask);
   return true;
 }
 

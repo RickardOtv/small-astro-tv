@@ -42,7 +42,7 @@ holding waters the plants).
   night. Seasonal hats: Santa in December, Lucia on 13 December, flowers on
   Midsummer Eve, a party hat on your birthday.
 - **Plants**: hold the button on the Plants screen to water everything due by
-  tomorrow. Home shows a drop by the date when a plant needs water.
+  tomorrow. When one is due, Home shows "Water Basil" (or "Water 2 plants") in place of the weekday.
 - **Night dimming** in the Display tab, e.g. 19:00 to 08:00.
 
 ## Install

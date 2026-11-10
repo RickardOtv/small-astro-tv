@@ -30,9 +30,16 @@ uint8_t plantsWater(CommuteSettings& c, int i, time_t now) {
   return mask;
 }
 
-bool plantsNeedWater(const CommuteSettings& c, time_t now) {
-  if (now < 1700000000) return false;
-  for (uint8_t k = 0; k < MAX_PLANTS; k++)
-    if (plantUsed(c.plants[k]) && plantDueIn(c.plants[k], now) <= 0) return true;
-  return false;
+uint8_t plantsDueCount(const CommuteSettings& c, time_t now, int* first) {
+  uint8_t n = 0;
+  if (first) *first = -1;
+  if (now < 1700000000) return 0;   // the clock is not set yet
+  for (uint8_t k = 0; k < MAX_PLANTS; k++) {
+    if (!plantUsed(c.plants[k]) || plantDueIn(c.plants[k], now) > 0) continue;
+    if (first && *first < 0) *first = k;
+    n++;
+  }
+  return n;
 }
+
+bool plantsNeedWater(const CommuteSettings& c, time_t now) { return plantsDueCount(c, now, nullptr) > 0; }

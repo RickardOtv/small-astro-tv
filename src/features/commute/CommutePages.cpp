@@ -177,14 +177,23 @@ static void homeTrip(Arduino_GFX* g, const Settings& s, time_t now) {
 void cpHome(Arduino_GFX* g, const Settings& s, const struct tm* t, time_t now) {
   char buf[40];
   if (t) {
-    cdText(g, &commuteBold16, kCdDays[t->tm_wday], 10, 22, C_WHITE);
-    snprintf(buf, sizeof(buf), "%d %s", t->tm_mday, kCdMonths[t->tm_mon]);
+    int first;
+    uint8_t due = plantsDueCount(s.commute, now, &first);
+    // A short month ("9 Nov") leaves room for the plant notice.
+    snprintf(buf, sizeof(buf), due ? "%d %.3s" : "%d %s", t->tm_mday, kCdMonths[t->tm_mon]);
     cdTextRight(g, &commuteReg16, buf, 230, 22, C_GRAY);
-    if (plantsNeedWater(s.commute, now)) {           // a plant is thirsty: a drop by the date
-      int dx = 230 - cdTextW(g, &commuteReg16, buf) - 12;
+    if (due) {   // a plant is thirsty: a drop and "Water Basil" in place of the weekday
       uint16_t b = gfxTint(kRainBlue);
-      g->fillCircle(dx, 15, 4, b);
-      g->fillTriangle(dx - 4, 14, dx + 4, 14, dx, 6, b);
+      g->fillCircle(14, 15, 4, b);
+      g->fillTriangle(10, 14, 18, 14, 14, 6, b);
+      int room = 230 - cdTextW(g, &commuteReg16, buf) - 10 - 24;
+      char msg[48];
+      snprintf(msg, sizeof(msg), "Water %s", s.commute.plants[first].name.c_str());
+      if (due > 1) snprintf(msg, sizeof(msg), "Water %u plants", due);
+      else if (cdTextW(g, &commuteBold16, msg) > room) strlcpy(msg, "Water!", sizeof(msg));
+      cdText(g, &commuteBold16, msg, 24, 22, b);
+    } else {
+      cdText(g, &commuteBold16, kCdDays[t->tm_wday], 10, 22, C_WHITE);
     }
     snprintf(buf, sizeof(buf), "%02d:%02d", t->tm_hour, t->tm_min);
   } else {

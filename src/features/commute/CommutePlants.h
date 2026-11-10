@@ -20,4 +20,6 @@ bool plantUsed(const PlantSettings& p);
 uint8_t plantsWater(CommuteSettings& c, int i, time_t now);
 
 // Something to show on Home: a plant is due today or late.
+// How many plants are due today or overdue; *first gets the first one's slot.
+uint8_t plantsDueCount(const CommuteSettings& c, time_t now, int* first);
 bool plantsNeedWater(const CommuteSettings& c, time_t now);
