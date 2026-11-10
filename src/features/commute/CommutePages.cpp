@@ -642,7 +642,9 @@ static void drawPlant(Arduino_GFX* g, int x, int y, int dueIn) {
 void cpPlants(Arduino_GFX* g, const Settings& s, time_t now, uint8_t watered) {
   char buf[32];
   cdText(g, &commuteBold16, "Plants", 10, 22, C_WHITE);
-  if (watered) {
+  if (watered & kPlantsNoneDue) {
+    cdTextRight(g, &commuteReg12, now ? "nothing due" : "clock not set", 230, 20, cdRgb(255, 150, 40));
+  } else if (watered) {
     uint8_t n = 0;
     for (uint8_t k = 0; k < MAX_PLANTS; k++) n += (watered >> k) & 1;
     snprintf(buf, sizeof(buf), "Watered %u!", n);

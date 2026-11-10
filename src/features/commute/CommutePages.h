@@ -36,6 +36,8 @@ void cpWeek(Arduino_GFX* g, const Settings& s);
 void cpTrips(Arduino_GFX* g, const Settings& s, time_t now);
 void cpInfo(Arduino_GFX* g, const Settings& s, const CommuteInfo& info);
 // `watered`: bit mask of plants just watered (splash), 0 = none.
+// showWatered() flag: hold found nothing to water (plant bits are 0..MAX_PLANTS-1).
+static const uint8_t kPlantsNoneDue = 0x80;
 void cpPlants(Arduino_GFX* g, const Settings& s, time_t now, uint8_t watered);
 
 // The astronaut dresses for the weather and the season, waves when it is time

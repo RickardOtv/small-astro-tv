@@ -2,9 +2,17 @@
 
 bool plantUsed(const PlantSettings& p) { return p.name.length() > 0 && p.everyDays > 0; }
 
+// Local calendar day number: noon of that date / 86400, so DST shifts don't matter.
+static long localDay(time_t t) {
+  struct tm l;
+  localtime_r(&t, &l);
+  l.tm_hour = 12; l.tm_min = 0; l.tm_sec = 0; l.tm_isdst = -1;
+  return (long)(mktime(&l) / 86400L);
+}
+
 int plantDueIn(const PlantSettings& p, time_t now) {
   if (!p.wateredAt || now <= (time_t)p.wateredAt) return p.wateredAt ? p.everyDays : 0;
-  long days = (long)(now - (time_t)p.wateredAt) / 86400L;
+  long days = localDay(now) - localDay((time_t)p.wateredAt);
   return (int)p.everyDays - (int)days;
 }
 

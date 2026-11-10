@@ -502,15 +502,17 @@ function cmShow(d){var el=$('cmState');if(!el)return;var x=d.data||{};
  [].forEach.call($('cmPages').children,function(b,i){b.classList.toggle('sec',i!==d.page&&i<CM_PAGES.length)})}
 // Plants: one row per slot (name, every N days, last watered, Water button).
 var CM_PLANTS=4;
-function cmPlantsShow(pl){var el=$('cmPlants');if(!el)return;var now=Date.now()/1000,h='';
- for(var i=0;i<CM_PLANTS;i++){var p=(pl||[])[i]||{};var at=p.at||0,ago=at?Math.floor((now-at)/86400):-1;
+function cmDays(at){var a=new Date(at*1000),b=new Date();a.setHours(12,0,0,0);b.setHours(12,0,0,0);return Math.round((b-a)/864e5)}
+function cmPlantsShow(pl){var el=$('cmPlants');if(!el)return;var h='';
+ for(var i=0;i<CM_PLANTS;i++){var p=(pl||[])[i]||{};var at=p.at||0,ago=at?cmDays(at):-1;
   h+='<div class="row" style="align-items:end"><div><label>Plant '+(i+1)+'</label><input id="cmPlName'+i+'" type="text" maxlength="40" placeholder="e.g. Monstera"></div>'+
    '<div><label>Every (days)</label><input id="cmPlEvery'+i+'" type="number" min="1" max="60"></div>'+
-   '<div><small class="hint">'+(p.name?(ago<0?'never watered':ago===0?'watered today':'watered '+ago+' d ago'):'')+'</small> '+
+   '<div><small class="hint" id="cmPlAgo'+i+'">'+(p.name?(ago<0?'never watered':ago===0?'watered today':'watered '+ago+' d ago'):'')+'</small> '+
    (p.name?'<button class="btn sec" onclick="cmWater('+i+')">Water</button>':'')+'</div></div>';}
  el.innerHTML=h;
  for(var k=0;k<CM_PLANTS;k++){var q=(pl||[])[k]||{};sv('cmPlName'+k,q.name||'');sv('cmPlEvery'+k,q.every||7);}}
-function cmWater(i){j('/api/commute/water',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plant:i})}).then(function(d){toast(d.watered?'Watered':'Nothing watered');return loadConfig()}).catch(function(e){toast(e.message)})}
+function cmWater(i){j('/api/commute/water',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({plant:i})}).then(function(d){toast(d.watered?'Watered':'Nothing watered');return j('/api/config')}).then(function(c){var pl=((c||{}).commute||{}).plants||[];
+ for(var k=0;k<CM_PLANTS;k++){var e=$('cmPlAgo'+k),p=pl[k]||{};if(e&&p.name&&p.at)e.textContent=cmDays(p.at)===0?'watered today':'watered '+cmDays(p.at)+' d ago'}}).catch(function(e){toast(e.message)})}
 function cmRefresh(){return j('/api/commute').then(cmShow).catch(function(){})}
 function cmPage(n){j('/api/commute/page',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(n<0?{next:true}:{page:n})}).then(cmRefresh).catch(function(e){toast(e.message)})}
 function j(url,opt){return fetch(url,opt).then(function(r){return r.json().then(function(d){if(!r.ok)throw new Error(d.error||'Request failed');return d})})}

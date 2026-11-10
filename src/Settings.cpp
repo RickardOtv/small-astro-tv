@@ -546,9 +546,11 @@ void CommuteSettings::fromJson(JsonObjectConst o) {
   for (size_t i = 0; i < pa.size() && i < MAX_PLANTS; i++) {
     JsonObjectConst x = pa[i];
     PlantSettings& p = plants[i];
+    String old = p.name;
     readField(x, "name", p.name);
     if (x["every"].is<int>()) p.everyDays = constrain((int)x["every"], 1, 60);
     if (x["at"].is<uint32_t>()) p.wateredAt = x["at"].as<uint32_t>();
+    else if (p.name != old) p.wateredAt = 0;   // a new plant in this slot
   }
 }
 

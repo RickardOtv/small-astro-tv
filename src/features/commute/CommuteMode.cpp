@@ -80,7 +80,7 @@ bool CommuteMode::longPress(Settings& s) {
   if (page_ != PAGE_PLANTS) return false;
   uint8_t mask = plantsWater(s.commute, -1, clockSynced() ? time(nullptr) : 0);
   if (mask) saveSettings(s);
-  showWatered(mask ? mask : 0);
+  showWatered(mask ? mask : kPlantsNoneDue);
   needRender_ = true;
   return true;
 }
